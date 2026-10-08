@@ -1,21 +1,25 @@
 ---
 model_name: Codexa v1
 architecture: decoder-only Transformer
-parameters: 921773568
+parameters: 934356480
 context_length: 2048
-vocabulary_size: 8192
+vocabulary_size: 16384
 language: en
 license: other
 ---
 
 # Codexa v1 Model Card
 
-Codexa v1 is a 921,773,568-parameter decoder-only Transformer being trained
+Codexa v1 is a 934,356,480-parameter decoder-only Transformer being trained
 from random initialization with PyTorch. It uses 24 blocks, hidden size 1,536,
 24 attention heads, SwiGLU feed-forward layers, RMSNorm, learned position
 embeddings, and tied token/output embeddings.
 
-## Training status
+## Retained experimental artifacts
+
+The workspace references existing native base and repair/SFT checkpoints. Native chat and optional retrieval are implemented, but conversational quality remains inadequate. The 200-step Stage 2 pilot is explicitly experimental-not-promoted. This migration does not promote any checkpoint; retained results are under documentation/training/STAGE2_RESULTS.md.
+
+## Historical rebuild status
 
 The rebuild has not produced an accepted checkpoint. The retained local
 FineWeb-Edu artifact contains 883,814,184 training tokens from one pinned

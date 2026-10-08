@@ -1,57 +1,9 @@
-# Repository Guidelines
+# Canonical PyTorch workspace guidelines
 
-## Project Structure & Module Organization
+This root Git repository pins seven independent component repositories as submodules. Keep reusable implementations in their owners and integration/evaluation orchestration in `src/codexa_workspace`. Generic `src` and script adapters are temporary compatibility interfaces. Do not import the integration package from a component or introduce reverse/circular package dependencies.
 
-`src/` contains the language-model configuration and model (`config.py`,
-`model.py`), tokenizer code, and the dataset pipeline under `src/data/`.
-Command-line entry points live in `scripts/`: prepare data, train or inspect a
-tokenizer, and build or inspect token data. Keep reusable logic in `src/` and
-leave argument parsing in scripts. Tests are executable modules in `tests/`;
-small deterministic inputs belong in `tests/fixtures/`. `configs/smoke.yaml`
-is the checked-in configuration fixture. Local datasets, tokenized outputs,
-logs, and checkpoints belong in their respective ignored `data/`, `logs/`, and
-`checkpoints/` directories.
+Use `.venv` for generative checks and `.venv-specialist` for the frozen encoder/heads. Assets resolve through CODEXA_ASSET_ROOT or ignored artifacts.local.json; never fall back to retired project directories. Never commit weights, datasets, private logs, environments, source snapshots, credentials or recovery bundles. New experiments require distinct output paths beneath this workspace or an explicitly configured output root; historical assets are read-only inputs.
 
-## Development & Test Commands
+Preserve state-dictionary keys, NPZ/native checkpoint dialects, tokenizer IDs and hashes, model lineage, RNG/optimizer restoration and memory scopes. Base/SFT operator launches require the automatically attached visible 100x22 Kitty viewer. Use bounded synthetic tests; no expensive training runs during refactors.
 
-Use the repository virtual environment when available:
-
-```bash
-source .venv/bin/activate
-python -m pytest
-python tests/test_model.py
-python scripts/prepare_dataset.py --help
-python scripts/train_tokenizer.py --help
-```
-
-`pytest` runs the full regression suite; individual test files can be run
-directly because they use plain `assert` statements. Use each script's
-`--help` output before running a pipeline: inputs and output locations are
-explicit CLI arguments, and generated data must not be committed.
-
-## Coding Style & Naming Conventions
-
-Write Python with four-space indentation, type annotations, and short
-docstrings on public functions. Follow the existing standard-library-first
-import grouping and keep lines readable rather than compressing logic. Use
-`snake_case` for functions, variables, files, and CLI flags; use `PascalCase`
-for classes and dataclasses; use `UPPER_SNAKE_CASE` for constants. Prefer
-`pathlib.Path`, dataclasses, and explicit validation with informative errors.
-No formatter or linter is configured, so match nearby code.
-
-## Testing Guidelines
-
-Name test files `test_*.py` and test functions `test_<behavior>`. Add focused
-coverage for valid behavior, malformed input, and reproducibility when a
-pipeline changes. Keep tests self-contained with `TemporaryDirectory`; do not
-depend on local files in ignored data directories. Run `python -m pytest`
-before opening a pull request.
-
-## Commits & Pull Requests
-
-Recent history uses imperative, scoped subjects such as `Implement reproducible
-BPE tokenizer pipeline`. Keep commits short and focused. Pull requests should
-state the behavioral change, list validation performed, and call out any
-configuration, dataset format, or generated-artifact impact. Link relevant
-issues when available; include console output or screenshots only when they
-clarify a user-visible result.
+Append dated decisions/evidence to documentation/training/SESSION_DECISIONS.md and milestones to 100M_PROGRESS_LOG.md. Run the relevant regression suites, wheel and CLI checks before PRs. Stage source changes and intentional submodule pins only. Do not force-push, merge PRs, alter repository permissions/protection or remove pending-retirement directories without satisfying the documented gates.

@@ -1,0 +1,5 @@
+{
+  "asset_root": "/protected/storage/pytorch",
+  "output_root": "outputs",
+  "reference_source": "/protected/recovery/pytorch-source"
+}

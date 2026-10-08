@@ -191,6 +191,12 @@ def test_save_load_retention_and_corruption() -> None:
                 run_id="id",
                 tokenizer_reference="tokenizer.json",
                 tokenizer_sha256="a" * 64,
+                resume_context={
+                    "data_manifest_sha256": "b" * 64,
+                    "configuration_sha256": "c" * 64,
+                    "data_cursor": {"completed_epochs": 0, "batches_in_epoch": step},
+                    "mixture_sampler_state": {"seed": 42, "cursor": step},
+                },
             )
             manager.save(
                 payload,
@@ -199,6 +205,14 @@ def test_save_load_retention_and_corruption() -> None:
             )
 
         assert manager.latest_path.is_file()
+        completion = json.loads(
+            manager.latest_path.with_suffix(".pt.complete.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert completion["complete"] is True
+        assert completion["sha256"] == file_sha256(manager.latest_path)
+        assert completion["optimizer_step"] == 3
         assert manager.previous_path.is_file()
         assert manager.best_path.is_file()
         milestone = manager.milestone_dir / "step_000000002.pt"
@@ -219,12 +233,25 @@ def test_save_load_retention_and_corruption() -> None:
             optimizer=restored_optimizer,
             scaler=None,
             expected_config=config,
+            expected_data_manifest_sha256="b" * 64,
         )
         assert loaded.state.optimizer_step == 3
         assert loaded.scheduler == scheduler_state()
         assert loaded.run_name == "run"
         assert loaded.run_id == "id"
         assert loaded.tokenizer_reference == "tokenizer.json"
+        assert loaded.resume_context is not None
+        assert loaded.resume_context["configuration_sha256"] == "c" * 64
+        assert_raises(
+            ValueError,
+            load_checkpoint,
+            manager.latest_path,
+            model=LanguageModel(config.model),
+            optimizer=optimizer_for(LanguageModel(config.model)),
+            scaler=None,
+            expected_config=config,
+            expected_data_manifest_sha256="d" * 64,
+        )
         for original, restored in zip(
             model.parameters(),
             restored_model.parameters(),

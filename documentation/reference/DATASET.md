@@ -25,7 +25,8 @@ distributed under ODC-By 1.0 and pinned to revision:
 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9
 ```
 
-The retained local artifact currently comes from one upstream Parquet shard:
+Ten raw upstream Parquet shards are downloaded. The retained prepared and
+tokenized pipeline artifact currently comes from only the first shard:
 
 ```text
 data/raw/fineweb-edu-10bt/sample/10BT/000_00000.parquet
@@ -54,10 +55,11 @@ The tokenizer SHA-256 is:
 6b26d3c98d8782298119875c368a69fdccbff03cca6fbfa1fc0851b0f3f8ef0c
 ```
 
-The retained shard verifies the complete local pipeline but is not the final
-training corpus for a 1B-class model. Additional pinned FineWeb-Edu shards must
-be prepared and tokenized before the production run. Exact input files, output
-checksums, document counts, and token counts must be frozen in manifests.
+The retained prepared shard verifies the old single-source pipeline but is not
+the final training corpus. All ten downloaded shards and Wikipedia must pass
+cross-source governance, tokenizer comparison, mixture accounting, and
+deterministic tokenization before production. Exact inputs, rejection counts,
+splits, output checksums, document counts, and token counts must be frozen.
 
 FineWeb-Edu is filtered web text. It may contain factual errors, bias, private
 information, unsafe material, copyrighted text, and duplication missed by

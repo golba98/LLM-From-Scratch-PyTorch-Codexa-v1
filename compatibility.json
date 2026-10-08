@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "components": {
+    "LLM-Architecture": {
+      "distribution": "llm-architecture",
+      "version": "0.1.0",
+      "path": "LLM-Architecture",
+      "commit": "a9519764b148257372cbe16db363870a942d3165",
+      "state": "pinned-submodule"
+    },
+    "LLM-Tokenizer": {
+      "distribution": "llm-tokenizer",
+      "version": "0.1.0",
+      "path": "LLM-Tokenizer",
+      "commit": "b4cefaff09c5c4c17b0efe8b2dc4c13b0fdf7276",
+      "state": "pinned-submodule"
+    },
+    "LLM-Data": {
+      "distribution": "llm-data",
+      "version": "0.1.0",
+      "path": "LLM-Data",
+      "commit": "77adbf98786298f6732201d627be33438b4c98c5",
+      "state": "pinned-submodule"
+    },
+    "LLM-Training": {
+      "distribution": "llm-training",
+      "version": "0.1.0",
+      "path": "LLM-Training",
+      "commit": "40f4d848122f7eb997506a2c3ae82bbb03761999",
+      "state": "pinned-submodule"
+    },
+    "LLM-Inference": {
+      "distribution": "llm-inference",
+      "version": "0.1.0",
+      "path": "LLM-Inference",
+      "commit": "465bfd107577b3492f6a794e62ea7a24d96096b2",
+      "state": "pinned-submodule"
+    },
+    "LLM-Memory": {
+      "distribution": "llm-memory",
+      "version": "0.1.0",
+      "path": "LLM-Memory",
+      "commit": "58e947aabe184acd257a1b0a6d5315e29e4ed1cc",
+      "state": "pinned-submodule"
+    },
+    "LLM-Specialist": {
+      "distribution": "llm-specialist",
+      "version": "0.1.0",
+      "path": "LLM-Specialist",
+      "commit": "1a3089d36dcb2038e50be85b921c9426fa8bca15",
+      "state": "pinned-submodule"
+    }
+  },
+  "environments": {
+    "generative": ".venv/bin/python",
+    "specialist": ".venv-specialist/bin/python"
+  },
+  "memory_transport": "JSON lines over separate subprocess",
+  "assets": "artifact-catalog/catalog.json",
+  "github_published": true
+}

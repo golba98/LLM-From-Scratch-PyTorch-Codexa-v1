@@ -20,6 +20,7 @@ from src.token_data import (
     create_token_dataloader,
     file_sha256,
     inspect_token_data,
+    production_packing_policy,
 )
 from src.tokenizer import train_tokenizer
 
@@ -151,6 +152,14 @@ def test_binary_pipeline() -> tuple[int, int, str, str]:
         assert manifest["eos_token"] == "<eos>"
         assert manifest["eos_token_id"] == 2
         assert manifest["context_length"] == CONTEXT_LENGTH
+        assert manifest["packing_policy"] == production_packing_policy()
+        assert manifest["packing_policy"]["eos_tokens_between_documents"] == 1
+        assert manifest["packing_policy"][
+            "attention_crosses_document_boundaries"
+        ] is True
+        assert manifest["packing_policy"][
+            "position_ids_reset_at_document_boundaries"
+        ] is False
         assert manifest["cli_arguments"]["stride"] == CONTEXT_LENGTH
         assert manifest["cli_arguments"]["encoding_batch_size"] == 1
         assert not Path(manifest["tokenizer_path"]).is_absolute()
@@ -191,6 +200,22 @@ def test_binary_pipeline() -> tuple[int, int, str, str]:
                 assert "text" not in entry
                 expected_start = entry["token_end"]
             assert expected_start == len(tokens)
+
+            if split_name == "train":
+                boundary = index_entries[0]["eos_token_position"]
+                sequence_index = boundary // CONTEXT_LENGTH
+                sequence_start = sequence_index * CONTEXT_LENGTH
+                if sequence_start <= boundary < sequence_start + CONTEXT_LENGTH:
+                    dataset = MemmapTokenDataset(
+                        token_path,
+                        dtype=np.uint16,
+                        context_length=CONTEXT_LENGTH,
+                    )
+                    inputs, labels = dataset[sequence_index]
+                    local = boundary - sequence_start
+                    assert inputs[local].item() == 2
+                    assert labels[local].item() == int(tokens[boundary + 1])
+                    assert not torch.any(labels == -100)
 
         summary = inspect_token_data(result.manifest_path)
         assert summary["dtype"] == "uint16"
@@ -281,6 +306,19 @@ def test_memmap_dataset_and_loader() -> float:
         assert labels.dtype == torch.int64
         assert torch.equal(input_ids[1:], labels[:-1])
         assert torch.equal(dataset[-1][0][1:], dataset[-1][1][:-1])
+
+        ranged = MemmapTokenDataset(
+            output_dir / "train.bin",
+            dtype="uint16",
+            context_length=CONTEXT_LENGTH,
+            stride=8,
+            model_vocab_size=8192,
+            token_offset=8,
+            token_count=25,
+        )
+        assert len(ranged) == 2
+        assert torch.equal(ranged[0][0], dataset[1][0])
+        assert torch.equal(ranged[0][1], dataset[1][1])
 
         assert_raises(
             IndexError,

@@ -1,5 +1,10 @@
 """Compare trusted checkpoint-evaluation reports and select a best candidate."""
 
+from pathlib import Path as _BootstrapPath
+import sys as _bootstrap_sys
+_bootstrap_sys.path.insert(0, str(_BootstrapPath(__file__).resolve().parents[1]))
+import workspace_bootstrap
+
 import argparse
 from datetime import datetime, timezone
 import json

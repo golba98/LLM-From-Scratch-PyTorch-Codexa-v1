@@ -83,6 +83,70 @@ def test_generation_config_validation() -> None:
     assert_raises(ValueError, GenerationConfig, top_p=0)
     assert_raises(ValueError, GenerationConfig, repetition_penalty=0)
     assert_raises(ValueError, GenerationConfig, seed=-1)
+    assert_raises(ValueError, GenerationConfig, use_kv_cache=1)
+
+
+def test_kv_cache_matches_uncached_logits_and_generation() -> None:
+    torch.manual_seed(19)
+    config = ModelConfig(
+        vocab_size=32,
+        context_length=16,
+        num_layers=2,
+        hidden_size=16,
+        num_heads=2,
+        intermediate_size=32,
+    )
+    model = LanguageModel(config).eval()
+    prompt = torch.tensor([[3, 7, 11, 5, 2]], dtype=torch.long)
+
+    with torch.inference_mode():
+        uncached_logits, _ = model(prompt)
+        cached_logits, _, cache = model(
+            prompt[:, :3],
+            use_cache=True,
+        )
+        torch.testing.assert_close(
+            cached_logits,
+            uncached_logits[:, :3],
+            rtol=1e-5,
+            atol=1e-6,
+        )
+        for index in range(3, prompt.shape[1]):
+            cached_logits, _, cache = model(
+                prompt[:, index : index + 1],
+                past_key_values=cache,
+                use_cache=True,
+            )
+            torch.testing.assert_close(
+                cached_logits[:, -1],
+                uncached_logits[:, index],
+                rtol=1e-5,
+                atol=1e-6,
+            )
+
+        uncached = generate_sequences(
+            model,
+            prompt[:, :3],
+            eos_token_id=31,
+            config=GenerationConfig(
+                max_new_tokens=4,
+                do_sample=False,
+                use_kv_cache=False,
+            ),
+        ).sequences[0]
+        cached = generate_sequences(
+            model,
+            prompt[:, :3],
+            eos_token_id=31,
+            config=GenerationConfig(
+                max_new_tokens=4,
+                do_sample=False,
+                use_kv_cache=True,
+            ),
+        ).sequences[0]
+
+    assert cached.token_ids == uncached.token_ids
+    assert cached.finish_reason == uncached.finish_reason
 
 
 def test_filters_and_penalty() -> None:

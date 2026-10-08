@@ -1,5 +1,5 @@
 model:
-  vocab_size: 8192
+  vocab_size: 16384
   context_length: 2048
   num_layers: 24
   hidden_size: 1536
@@ -7,6 +7,8 @@ model:
   intermediate_size: 6144
   dropout: 0.0
   tie_embeddings: true
+  position_embedding_type: learned
+  rope_theta: 10000.0
 
 training:
   micro_batch_size: 1

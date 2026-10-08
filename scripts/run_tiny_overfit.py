@@ -1,5 +1,10 @@
 """Deliberately overfit a short sequence and verify checkpoint resume."""
 
+from pathlib import Path as _BootstrapPath
+import sys as _bootstrap_sys
+_bootstrap_sys.path.insert(0, str(_BootstrapPath(__file__).resolve().parents[1]))
+import workspace_bootstrap
+
 import argparse
 from dataclasses import asdict
 import json
@@ -15,18 +20,18 @@ from torch.utils.data import DataLoader, TensorDataset
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.checkpointing import (
+from llm_training.checkpointing import (
     CheckpointManager,
     SchedulerState,
     build_checkpoint_payload,
     load_checkpoint,
 )
-from src.config import load_config
-from src.generate import GenerationConfig, generate_token_ids
-from src.model import LanguageModel, count_parameters
-from src.token_data import file_sha256
-from src.tokenizer import EOS_TOKEN, load_tokenizer
-from src.training import (
+from llm_training.config import load_config
+from llm_inference.generate import GenerationConfig, generate_token_ids
+from llm_architecture.model import LanguageModel, count_parameters
+from llm_data.token_data import file_sha256
+from llm_tokenizer.tokenizer import EOS_TOKEN, load_tokenizer
+from llm_training.training import (
     JsonlRunLogger,
     TrainingState,
     create_adamw_optimizer,
@@ -56,6 +61,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
     parser.add_argument("--run-name", default="tiny-overfit-phase10")
     parser.add_argument("--target-loss", type=float, default=0.15)
+    parser.add_argument("--target-accuracy", type=float, default=0.99)
     parser.add_argument("--overwrite", action="store_true")
     return parser
 
@@ -89,6 +95,8 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     precision = resolve_precision(arguments.precision, device)
     if arguments.target_loss <= 0:
         raise ValueError("--target-loss must be positive.")
+    if not 0 < arguments.target_accuracy <= 1:
+        raise ValueError("--target-accuracy must be in (0, 1].")
     run_checkpoint_dir = arguments.checkpoint_dir / arguments.run_name
     run_log_dir = arguments.log_dir / arguments.run_name
     if arguments.overwrite:
@@ -250,6 +258,19 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
             f"{final_loss:.6f} > {arguments.target_loss:.6f}."
         )
 
+    model.eval()
+    with torch.no_grad():
+        logits, _loss = model(input_ids.to(device), labels.to(device))
+    predictions = logits.argmax(dim=-1)
+    target_accuracy = float(
+        (predictions == labels.to(device)).float().mean().item()
+    )
+    if target_accuracy < arguments.target_accuracy:
+        raise RuntimeError(
+            f"Tiny overfit accuracy target was not reached: "
+            f"{target_accuracy:.6f} < {arguments.target_accuracy:.6f}."
+        )
+
     prompt_ids = content_ids[: min(8, len(content_ids))]
     generated_ids = generate_token_ids(
         model,
@@ -270,9 +291,12 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
         "optimizer_steps": state.optimizer_step,
         "resume_step": split_step,
         "tokens_seen": state.tokens_seen,
+        "fixture_token_count": labels.numel(),
         "initial_loss": all_metrics[0].training_loss,
         "final_loss": final_loss,
         "target_loss": arguments.target_loss,
+        "target_token_accuracy": target_accuracy,
+        "required_target_token_accuracy": arguments.target_accuracy,
         "generated_text": tokenizer.decode(
             generated_ids,
             skip_special_tokens=True,
@@ -289,7 +313,13 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
 
 
 def main() -> None:
-    run(build_argument_parser().parse_args())
+    arguments = build_argument_parser().parse_args()
+    from llm_training.viewer import attached_viewer
+    config = load_config(arguments.config)
+    with attached_viewer(metrics_path=arguments.log_dir / arguments.run_name / "train_metrics.jsonl",
+                         checkpoint_path=arguments.checkpoint_dir / arguments.run_name / "latest.pt",
+                         total_steps=config.training.max_steps, title="LLM tiny overfit diagnostic"):
+        run(arguments)
 
 
 if __name__ == "__main__":

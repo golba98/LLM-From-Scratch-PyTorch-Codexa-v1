@@ -139,6 +139,8 @@ def test_state_and_metrics() -> None:
         total_tokens_seen=16,
         tokens_per_second=100.0,
         step_time_seconds=0.16,
+        forward_backward_seconds=0.14,
+        optimizer_update_seconds=0.02,
         gradient_norm=1.0,
         allocated_vram_bytes=0,
         reserved_vram_bytes=0,
@@ -493,6 +495,8 @@ model:
   intermediate_size: 32
   dropout: 0.0
   tie_embeddings: true
+  position_embedding_type: learned
+  rope_theta: 10000.0
 training:
   micro_batch_size: 2
   gradient_accumulation_steps: 2

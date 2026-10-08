@@ -33,3 +33,5 @@ From NumPy: `.venv/bin/python -m pytest -q -p no:cacheprovider tests`. Configure
 ## Limits
 
 Independent off-disk asset backup is still unavailable. NumPy's local environment inherits system libraries; a fresh isolated install is not validated. A full central suite in the specialist environment requires generative-only pyarrow; the separate generative suite and specialist integration selection above were used instead. Model quality was not improved or promoted by this restructuring.
+
+Fresh GitHub clones (including pinned submodules), without private path settings, also pass: integration 119 passed / 7 skipped; NumPy 126 passed. Two private preservation checks account for the integration difference. Existing environments were reused; this is not a clean-host installation claim.

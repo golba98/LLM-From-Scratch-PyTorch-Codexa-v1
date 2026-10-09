@@ -5,14 +5,14 @@
       "distribution": "llm-architecture",
       "version": "0.1.0",
       "path": "../LLM-Architecture",
-      "commit": "a9519764b148257372cbe16db363870a942d3165",
+      "commit": "c33462047ad75b67d39ffbaf4a95e064fbbe5be4",
       "state": "pinned-sibling"
     },
     "LLM-Tokenizer": {
       "distribution": "llm-tokenizer",
       "version": "0.1.0",
       "path": "../LLM-Tokenizer",
-      "commit": "b4cefaff09c5c4c17b0efe8b2dc4c13b0fdf7276",
+      "commit": "cb9230544faf5d954bfe78f3c58c57d5ec27820d",
       "state": "pinned-sibling"
     },
     "LLM-Data": {
@@ -26,28 +26,28 @@
       "distribution": "llm-training",
       "version": "0.1.0",
       "path": "../LLM-Training",
-      "commit": "40f4d848122f7eb997506a2c3ae82bbb03761999",
+      "commit": "208cede89176f9bdcca193b666f33d06155ef65c",
       "state": "pinned-sibling"
     },
     "LLM-Inference": {
       "distribution": "llm-inference",
       "version": "0.1.0",
       "path": "../LLM-Inference",
-      "commit": "465bfd107577b3492f6a794e62ea7a24d96096b2",
+      "commit": "48a9f4b7fb5b4eef20fe9ce61f2089396b1fc244",
       "state": "pinned-sibling"
     },
     "LLM-Memory": {
       "distribution": "llm-memory",
       "version": "0.1.0",
       "path": "../LLM-Memory",
-      "commit": "58e947aabe184acd257a1b0a6d5315e29e4ed1cc",
+      "commit": "b5f41b76debcd8733e2efa0793df29ca5964fc26",
       "state": "pinned-sibling"
     },
     "LLM-Specialist": {
       "distribution": "llm-specialist",
       "version": "0.1.0",
       "path": "../LLM-Specialist",
-      "commit": "1a3089d36dcb2038e50be85b921c9426fa8bca15",
+      "commit": "8f5ca3a34cde70bd7b357b52cd8ee9e44e21527b",
       "state": "pinned-sibling"
     }
   },

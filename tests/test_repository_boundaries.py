@@ -18,7 +18,7 @@ from llm_inference.memory_adapter import DisabledMemory
 from llm_memory.service import ConversationMemory
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = ROOT
+WORKSPACE = ROOT.parent
 CATALOG = json.loads((ROOT / "artifact-catalog/catalog.json").read_text())
 LOCAL_PATH = ROOT / "artifacts.local.json"
 LOCAL = json.loads(LOCAL_PATH.read_text()) if LOCAL_PATH.is_file() else {}

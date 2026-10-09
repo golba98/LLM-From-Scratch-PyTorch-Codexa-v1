@@ -7,11 +7,15 @@ from pathlib import Path
 def workspace_root(explicit=None):
     if explicit or os.environ.get("CODEXA_WORKSPACE_ROOT"):
         root = Path(explicit or os.environ["CODEXA_WORKSPACE_ROOT"]).expanduser().resolve()
+        if (root / "LLM-From-Scratch/compatibility.json").is_file():
+            root = root / "LLM-From-Scratch"
         if not (root / "compatibility.json").is_file():
             raise ValueError("Workspace is missing compatibility.json")
         return root
     candidates = [Path(__file__).resolve().parents[2], *[Path.cwd(), *Path.cwd().parents]]
     for root in candidates:
+        if (root / "LLM-From-Scratch/compatibility.json").is_file():
+            return root / "LLM-From-Scratch"
         if (root / "compatibility.json").is_file():
             return root
     raise ValueError("Specify --workspace or CODEXA_WORKSPACE_ROOT outside the checkout")

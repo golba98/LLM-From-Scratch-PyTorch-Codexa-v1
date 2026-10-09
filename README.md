@@ -1,8 +1,10 @@
+> Current local layout: this repository is `LLM-From-Scratch` among eight sibling repositories. See [current layout](documentation/migration/SIBLING_LAYOUT.md); older consolidation records describe the previous submodule layout.
+
 # Codexa v1 — PyTorch workspace
 
-This is the canonical PyTorch development repository. Its seven component repositories are pinned Git submodules beneath this root; the former nested integration repository has been lifted here with its Git history intact.
+This is the canonical PyTorch development repository. Its seven component repositories are independent siblings with exact Git pins in compatibility.json. This directory retains the complete integration Git history.
 
-| Submodule | Responsibility |
+| Sibling repository | Responsibility |
 | --- | --- |
 | LLM-Architecture | Native Transformer, RMSNorm, SwiGLU, learned/RoPE positions, KV cache and checkpoint readers |
 | LLM-Tokenizer | Byte-level BPE and shared conversation/SFT serialization |
@@ -17,19 +19,19 @@ Reusable integration tools live in `src/codexa_workspace/`. Legacy `src` imports
 ## Checkout and environments
 
 ```bash
-git clone --recurse-submodules https://github.com/golba98/LLM-From-Scratch-PyTorch-Codexa-v1.git
+# See documentation/migration/SIBLING_LAYOUT.md for sibling checkout and installation.
 # Existing checkout:
-git submodule update --init --recursive
+cd LLM-From-Scratch
 python run.py test -q
 python run.py --repo LLM-Architecture test -q
 python run.py --profile specialist --repo LLM-Specialist test -q
 ```
 
-The local `.venv` and `.venv-specialist` were relocated from the original checkout on the same machine, their generated launch paths repaired, and local package wheels installed. They no longer require the old directory. Keep the generative and specialist environments separate. Exact external package inventories are recorded in requirements lock files; package and Git pins are in `compatibility.json`. See documentation/migration/ENVIRONMENTS.md for rebuilding and limitations.
+The local `.venv` and `.venv-specialist` were relocated from the original checkout on the same machine, their generated launch paths repaired, and local package wheels installed. They no longer require the old directory. Keep the generative and specialist environments separate. Exact external package inventories are recorded in requirements lock files; sibling package and Git pins are in `compatibility.json`. See documentation/migration/ENVIRONMENTS.md for rebuilding and limitations.
 
 ## Protected assets and new outputs
 
-Copy `artifacts.local.example.json` to ignored `artifacts.local.json` and set `asset_root`, or export `CODEXA_ASSET_ROOT`. The root contains the historical `checkpoints/`, `data/`, `exports/` and `logs/` trees. Local inputs currently live in protected temporary storage outside project directories. Model weights, datasets, private logs, source snapshots and recovery bundles are never committed.
+Copy `artifacts.local.example.json` to ignored `artifacts.local.json` and set `asset_root`, or export `CODEXA_ASSET_ROOT`. The configured asset root contains the historical `checkpoints/`, `data/`, `exports/` and `logs/` trees. Local inputs currently live in protected temporary storage outside project directories. Model weights, datasets, private logs, source snapshots and recovery bundles are never committed.
 
 ```bash
 python run.py module workflows.chat --describe

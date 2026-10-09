@@ -1,4 +1,4 @@
-"""Root/submodule and protected-output contracts."""
+"""Sibling repository and protected-output contracts."""
 import json
 from pathlib import Path
 import pytest
@@ -21,11 +21,11 @@ def test_relocated_inputs_and_output_guard(tmp_path, monkeypatch):
         output_root(root)
 
 
-def test_component_manifest_uses_root_paths_and_real_submodules():
+def test_component_manifest_uses_sibling_paths_and_independent_git_roots():
     root = Path(__file__).resolve().parents[1]
     manifest = json.loads((root / "compatibility.json").read_text())
     assert len(manifest["components"]) == 7
     for name, details in manifest["components"].items():
-        assert details["path"] == name
-        assert (root / name / ".git").is_file()
+        assert details["path"] == "../" + name
+        assert (root / details["path"] / ".git").is_dir()
         assert len(details["commit"]) == 40

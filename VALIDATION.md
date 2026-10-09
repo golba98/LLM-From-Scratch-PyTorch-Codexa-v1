@@ -1,3 +1,5 @@
+> Historical consolidation record. The current 2026-10-09 sibling layout and validation results are documented in documentation/migration/SIBLING_LAYOUT.md and ../workspace-infrastructure/audit-2026-10-09/REPORT.md.
+
 # Consolidation validation — 2026-10-08
 
 Recorded on this machine after migration, not historical extraction results.

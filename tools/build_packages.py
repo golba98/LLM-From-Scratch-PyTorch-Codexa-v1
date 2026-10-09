@@ -1,8 +1,8 @@
 from pathlib import Path
 import subprocess,os,json,zipfile,tomllib
 root=Path(__file__).resolve().parents[1]
-workspace=root
-output=root/'validation/wheels';output.mkdir(exist_ok=True)
+workspace=root.parent
+output=root/'validation/wheels';output.mkdir(parents=True,exist_ok=True)
 original=root
 python=original/'.venv/bin/python'
 env=os.environ.copy();env['PYTHONDONTWRITEBYTECODE']='1'
@@ -18,7 +18,7 @@ for repo in sorted(workspace.glob('LLM-*')):
   names=archive.namelist()
   assert not any(n.startswith(('src/','tests/','data/','checkpoints/','exports/')) for n in names),repo
   metadata=archive.read(next(n for n in names if n.endswith('/METADATA'))).decode()
-  assert 'Version: 0.1.0' in metadata
+  assert f"Version: {spec['project']['version']}" in metadata
   if spec['project'].get('scripts'):
    entries=archive.read(next(n for n in names if n.endswith('/entry_points.txt'))).decode()
    for name in spec['project']['scripts']:assert name in entries

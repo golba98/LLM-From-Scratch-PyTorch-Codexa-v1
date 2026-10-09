@@ -37,3 +37,8 @@ preservation/
 artifacts.local.json
 outputs/
 LLM-From-Scratch/
+
+# Shared infrastructure links are local, not packaged source
+/build
+/preservation
+/validation

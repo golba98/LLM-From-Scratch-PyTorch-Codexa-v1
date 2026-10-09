@@ -9,7 +9,11 @@ description = "Integration, evaluation and operator workflows for Codexa PyTorch
 requires-python = ">=3.11"
 readme = "README.md"
 license = "MIT"
-dependencies = []
+dependencies = ["llm-architecture==0.1.0", "llm-tokenizer==0.1.0", "llm-data[torch,parquet]==0.1.0", "llm-training==0.1.0", "llm-inference[memory]==0.1.0", "llm-memory==0.1.0"]
+
+[project.optional-dependencies]
+specialist = ["llm-specialist==0.1.0"]
+test = ["pytest>=9,<10"]
 
 [project.scripts]
 codexa = "codexa_workspace.cli:main"

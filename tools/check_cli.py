@@ -1,10 +1,11 @@
 from pathlib import Path
 import json,subprocess,os,sys
 root=Path(__file__).resolve().parents[1]
-workspace=root
+workspace=root.parent
+(root/'validation').mkdir(parents=True,exist_ok=True)
 catalog=json.loads((root/'artifact-catalog/catalog.json').read_text())
 original=root
-mapping=json.loads((workspace/'preservation/mapping.json').read_text())
+mapping=json.loads((root/'documentation/migration/module-mapping.json').read_text())
 env=os.environ.copy();env['PYTHONDONTWRITEBYTECODE']='1';env['CUDA_VISIBLE_DEVICES']=''
 env['PYTHONPATH']=os.pathsep.join(str(p/'src') for p in workspace.glob('LLM-*') if p.name!='LLM-From-Scratch')
 results=[]

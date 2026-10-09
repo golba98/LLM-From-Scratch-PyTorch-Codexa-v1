@@ -589,3 +589,13 @@ Published existing committed history (66eec75) as main to golba98/LLM-From-Scrat
 ## 2026-10-08 — Canonical workspace consolidation
 
 Lifted integration history to the renamed workspace root and registered seven existing repositories as pinned submodules. Preserved source/Git recovery records and relocated historical assets to a single protected temporary store with before/after SHA-256 verification. Canonical environments and asset resolution no longer depend on project 31. NumPy remains independently implemented and packaged. Actual-checkpoint parity and bounded CPU/CUDA validations are recorded in documentation/migration/. Originals remain pending review and independent backup; no model lineage was promoted.
+
+
+## 2026-10-09 — Restore eight sibling repository boundaries
+
+Moved integration and its Git history into LLM-From-Scratch; made existing component Git metadata independent without changing HEADs or indexes. Shared recovery/build/validation evidence moved once to workspace-infrastructure. Full pre-change plan, ownership inventory and journal are retained there. Source imports use pinned sibling paths; environments retain separate profiles. Original 31 and 32 are untouched; independent backup remains unavailable. No commits, pushes, PRs, training runs or repository deletion authorized. Validation results are recorded in the migration audit report.
+
+
+## 2026-10-09 — Publish sibling-layout review changes
+
+User explicitly authorized saving and publishing LLM-Data and LLM-From-Scratch changes to PRs. Existing Data PR #3 and integration PR #2 are updated without merging. Original Data integration test is preserved byte for byte in its tracked documentation archive; central active coverage remains. No original project, component repository, checkpoint or dataset is deleted. Other component documentation changes remain locally saved and unpublished. Private assets, environments and local recovery evidence remain outside Git. See documentation/migration/PUBLICATION_2026-10-09.md for validation and preservation details.

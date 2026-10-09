@@ -1,3 +1,5 @@
+> Historical consolidation record. The current 2026-10-09 sibling layout and validation results are documented in documentation/migration/SIBLING_LAYOUT.md and ../workspace-infrastructure/audit-2026-10-09/REPORT.md.
+
 # Consolidation and recovery
 
 The canonical PyTorch checkout is the root of project 37. Its former nested integration Git directory, files, remotes, branches and index were moved intact to this root. Seven component checkouts retain independent histories and become pinned Git submodules; .git directories were absorbed by Git into the root's modules storage. No component history was copied into the root as ordinary files. The old nested directory contains a retirement notice only.

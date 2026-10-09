@@ -1,6 +1,6 @@
 # Review publication and preservation — 2026-10-09
 
-The user authorized commits, pushes and PR updates for LLM-Data and LLM-From-Scratch after the local audit. Existing Data PR #3 and integration PR #2 carry these changes. No PR is merged and no repository is deleted. The eight sibling repositories are saved under project 37; shared local infrastructure is workspace-infrastructure. Original 31 and 32 remain untouched and pending independent backup verification.
+The user authorized commits, pushes and PR updates for LLM-Data and LLM-From-Scratch after the local audit. Existing Data PR #3 and integration PR #2 carry these changes. This publication does not perform merges or repository deletions. The eight sibling repositories are saved under project 37; shared local infrastructure is workspace-infrastructure. Original 31 and 32 remain untouched and pending independent backup verification.
 
 ## What Git labels as removed
 
@@ -26,4 +26,6 @@ Fresh committed sibling checkouts passed: integration 119 passed / 7 expected pr
 
 All remaining component README/AGENTS changes are saved and published through their PRs. The central manifest pins their exact saved commits. Workspace-level documents are tracked in documentation/workspace and exposed through local symlinks, with no duplicate maintained copies. All eight repositories are checked for clean status, exact remote-branch synchronization and PR coverage. Latest independent component tests: Architecture 5, Tokenizer 6, Training 10, Inference 1, Memory 5, Specialist 39 passed. Integration/package/CLI and final preservation checks are repeated before the final push. No private artifacts are published or deleted; no original projects or repositories are removed.
 
-Final all-repository publication revalidation passed: integration 121 passed / 5 optional sklearn skips; Architecture/Tokenizer/Training/Inference/Memory/Specialist 5/6/10/1/5/39 passed. Eight wheels rebuilt and 33 module CLI helps passed. All 517 asset metadata records and ten recovery bundles reverified. All review links and tracked workspace-document owners are listed in documentation/workspace/REVIEW_STATUS.md. Source/documentation is saved on review branches, not merged into default branches.
+Final all-repository publication revalidation passed: integration 121 passed / 5 optional sklearn skips; Architecture/Tokenizer/Training/Inference/Memory/Specialist 5/6/10/1/5/39 passed. Eight wheels rebuilt and 33 module CLI helps passed. All 517 asset metadata records and ten recovery bundles reverified. All review links and tracked workspace-document owners are listed in documentation/workspace/REVIEW_STATUS.md. Source/documentation is saved on review branches; default-branch inclusion follows each live PR state.
+
+Final review-boundary correction: the earlier Data PR #3 and integration PR #2 had already been merged externally. The remaining integration documentation/pin commit is cherry-picked onto a new branch based on current main and published through integration PR #3. Previous branches and histories are retained; no branch is deleted or force-pushed. The agent performs no PR merges.

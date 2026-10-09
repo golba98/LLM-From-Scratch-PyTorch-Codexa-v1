@@ -1766,3 +1766,8 @@ Moved integration and its Git history into LLM-From-Scratch; made existing compo
 ## 2026-10-09 — Publish sibling-layout review changes
 
 User explicitly authorized saving and publishing LLM-Data and LLM-From-Scratch changes to PRs. Existing Data PR #3 and integration PR #2 are updated without merging. Original Data integration test is preserved byte for byte in its tracked documentation archive; central active coverage remains. No original project, component repository, checkpoint or dataset is deleted. Other component documentation changes remain locally saved and unpublished. Private assets, environments and local recovery evidence remain outside Git. See documentation/migration/PUBLICATION_2026-10-09.md for validation and preservation details.
+
+
+## 2026-10-09 — Save every remaining workspace source/documentation change
+
+User authorized PRs for all remaining unsaved files. Six remaining component README/AGENTS changes are saved on their existing review branches. Integration compatibility pins advance to their saved commits. Workspace-level README, instructions and shared-infrastructure README now have single canonical tracked owners in documentation/workspace with local links. Every public source/documentation change is reviewed and published; private assets/configuration/environments/recovery records remain preserved and excluded from public Git. No merge, repository deletion, original-project mutation or production training is authorized.

@@ -16,7 +16,7 @@ from src.model import LanguageModel, ModelConfig, count_parameters
 SMOKE_CONFIG_PATH = Path("configs/smoke.yaml")
 EXPECTED_PARAMETER_COUNT = 17_406_336
 EXPECTED_TIER_PARAMETER_COUNTS = {
-    Path("configs/1b.yaml"): 921_773_568,
+    Path("configs/1b.yaml"): 934_356_480,
 }
 
 

@@ -1,119 +1,45 @@
-# Codexa v1
+> Current local layout: this repository is `LLM-From-Scratch` among eight sibling repositories. See [current layout](documentation/migration/SIBLING_LAYOUT.md); older consolidation records describe the previous submodule layout.
 
-Codexa v1 is a from-scratch decoder-only Transformer base-model project built
-with typed Python and PyTorch. The active target is the 921,773,568-parameter
-configuration in `configs/1b.yaml`, with an 8,192-token vocabulary and a
-2,048-token context window on one RTX 4080.
+# Codexa v1 — PyTorch workspace
 
-This repository currently covers base pretraining: licensed general and
-encyclopedic corpus download, FineWeb-Edu preparation, BPE tokenization,
-memory-mapped causal-LM data, mixed-precision training, atomic checkpoints,
-text completion, and fixed-prompt evaluation. Existing conversational corpora
-are downloaded separately and retain their role structure for later SFT.
+This is the canonical PyTorch development repository. Its seven component repositories are independent siblings with exact Git pins in compatibility.json. This directory retains the complete integration Git history.
 
-## Environment
+| Sibling repository | Responsibility |
+| --- | --- |
+| LLM-Architecture | Native Transformer, RMSNorm, SwiGLU, learned/RoPE positions, KV cache and checkpoint readers |
+| LLM-Tokenizer | Byte-level BPE and shared conversation/SFT serialization |
+| LLM-Data | Corpus provenance, preparation, packing and token data |
+| LLM-Training | Base/SFT training, optimizer state, restoration and monitoring |
+| LLM-Inference | Native completion, chat and experimental exports |
+| LLM-Memory | Scoped SQLite persistence, retrieval and worker client |
+| LLM-Specialist | Independently frozen EmbeddingGemma 2 and classifier heads |
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python -m pytest
-```
+Reusable integration tools live in `src/codexa_workspace/`. Legacy `src` imports, script paths and `--repo LLM-From-Scratch` remain compatibility adapters. NumPy is a separate implementation and repository.
 
-Use every script's `--help` before running it. Generated datasets, token data,
-logs, and checkpoints are intentionally ignored by Git.
-
-## Training data
-
-The base corpus combines pinned FineWeb-Edu general/educational text with a
-pinned English Wikipedia snapshot. Ten FineWeb-Edu `sample-10BT` shards and
-the complete `20231101.en` Wikipedia snapshot are the first downloaded source
-set. The currently prepared/tokenized artifact still contains only one
-FineWeb-Edu shard and 883,814,184 training tokens; regenerate it after the
-multi-source preparation path is complete.
-
-Download additional pinned shards:
+## Checkout and environments
 
 ```bash
-.venv/bin/python -m scripts.download_fineweb_edu --help
-.venv/bin/python -m scripts.download_language_corpora --help
+# See documentation/migration/SIBLING_LAYOUT.md for sibling checkout and installation.
+# Existing checkout:
+cd LLM-From-Scratch
+python run.py test -q
+python run.py --repo LLM-Architecture test -q
+python run.py --profile specialist --repo LLM-Specialist test -q
 ```
 
-Prepare them deterministically:
+The local `.venv` and `.venv-specialist` were relocated from the original checkout on the same machine, their generated launch paths repaired, and local package wheels installed. They no longer require the old directory. Keep the generative and specialist environments separate. Exact external package inventories are recorded in requirements lock files; sibling package and Git pins are in `compatibility.json`. See documentation/migration/ENVIRONMENTS.md for rebuilding and limitations.
+
+## Protected assets and new outputs
+
+Copy `artifacts.local.example.json` to ignored `artifacts.local.json` and set `asset_root`, or export `CODEXA_ASSET_ROOT`. The configured asset root contains the historical `checkpoints/`, `data/`, `exports/` and `logs/` trees. Local inputs currently live in protected temporary storage outside project directories. Model weights, datasets, private logs, source snapshots and recovery bundles are never committed.
 
 ```bash
-.venv/bin/python -m scripts.prepare_fineweb_edu --help
+python run.py module workflows.chat --describe
+python run.py module workflows.chat --device cuda
+python run.py generate --help
+python run.py train --help
 ```
 
-UltraChat 200k and OASST1 are downloaded as later conversational training
-sources. They must not be flattened into the base token stream or treated as
-Wikipedia/general knowledge. See `documentation/reference/DATASET.md` for
-revisions, roles, licenses, and the retained artifact's checksums.
+The chat catalog retains the repair comparison baseline and exact 16K tokenizer. The stage-2 pilot remains experimental. Learned-position/RMSNorm/SwiGLU native checkpoints are authoritative; historical GPT-2/Llama conversion paths remain experimental. New launcher outputs default beneath `outputs/`; direct component commands must receive explicit output paths. Operator training attaches the required visible 100x22 Kitty viewer before training.
 
-## Tokenizer and token data
-
-```bash
-.venv/bin/python -m scripts.train_tokenizer --help
-.venv/bin/python -m scripts.tokenize_dataset --help
-.venv/bin/python -m scripts.inspect_tokenizer --help
-.venv/bin/python -m scripts.inspect_token_data --help
-```
-
-The active tokenizer is a byte-level BPE tokenizer with 8,192 entries. Special
-token IDs are fixed at `<pad>=0`, `<bos>=1`, `<eos>=2`, and `<unk>=3`.
-
-## Validate before a long run
-
-```bash
-.venv/bin/python -m scripts.run_tiny_overfit --help
-.venv/bin/python -m scripts.preflight_full_run --help
-```
-
-The long run must start from random weights in a new output directory. Resume
-is allowed only after that run has produced its own trusted checkpoint.
-
-## Train the 1B base
-
-```bash
-.venv/bin/python -m scripts.train \
-  --config configs/1b.yaml \
-  --train-token-file data/tokenized/fineweb-edu-1b-v1/train.bin \
-  --validation-token-file data/tokenized/fineweb-edu-1b-v1/validation.bin \
-  --token-manifest data/tokenized/fineweb-edu-1b-v1/token_data_manifest.json \
-  --device cuda \
-  --precision bf16 \
-  --gradient-checkpointing \
-  --optimizer adamw8bit \
-  --run-name codexa-1b-base-rebuild
-```
-
-The retained one-shard token stream is suitable for smoke and throughput
-validation. Do not treat a run over only that stream as a finished 1B base.
-
-## Generate and evaluate
-
-```bash
-.venv/bin/python -m scripts.generate \
-  --checkpoint checkpoints/codexa-1b-base-rebuild/best.pt \
-  --tokenizer checkpoints/tokenizer-fineweb-edu/tokenizer.json \
-  --prompt "The purpose of education is" \
-  --device cuda \
-  --greedy
-
-.venv/bin/python -m scripts.evaluate_checkpoint \
-  --checkpoint checkpoints/codexa-1b-base-rebuild/best.pt \
-  --tokenizer checkpoints/tokenizer-fineweb-edu/tokenizer.json \
-  --validation-token-file data/tokenized/fineweb-edu-1b-v1/validation.bin \
-  --token-manifest data/tokenized/fineweb-edu-1b-v1/token_data_manifest.json \
-  --output logs/codexa-1b-base-rebuild/evaluation.json \
-  --device cuda
-```
-
-The base checkpoint is accepted only when fixed unseen prompts produce
-coherent continuations without systemic repetition or collapse. Assistant and
-multi-turn training are separate future work after that gate passes.
-
-The active execution checklist is
-`documentation/planning/PHASE_PLAN.md`. For a plain-language explanation of
-what each dataset teaches and why base training and chat fine-tuning are
-separate, read `documentation/planning/TRAINING_DATA_PLAN.md`.
+See [MIGRATION.md](MIGRATION.md), [VALIDATION.md](VALIDATION.md) and the detailed migration report under documentation/migration/. The source directories remain pending retirement, PRs are not auto-merged, and a single asset store is not an independent disk backup.

@@ -1,5 +1,10 @@
 """Run reproducible hardware, data, storage, and backup preflight checks."""
 
+from pathlib import Path as _BootstrapPath
+import sys as _bootstrap_sys
+_bootstrap_sys.path.insert(0, str(_BootstrapPath(__file__).resolve().parents[1]))
+import workspace_bootstrap
+
 import argparse
 from dataclasses import asdict
 import json
@@ -16,9 +21,9 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.train import _load_manifest, validate_manifest
-from src.config import load_config
-from src.model import LanguageModel, count_parameters
-from src.preflight import (
+from llm_training.config import load_config
+from llm_architecture.model import LanguageModel, count_parameters
+from llm_training.preflight import (
     PreflightCheck,
     disk_capacity_check,
     estimate_checkpoint_storage,

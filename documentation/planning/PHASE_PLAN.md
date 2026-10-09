@@ -1,156 +1,232 @@
-# Codexa v1 — Base Model Rebuild Plan
+# Codexa v1 — Gated Base-to-Conversation Rebuild
 
-Codexa will restart as a decoder-only base language model trained from random
-weights on existing, licensed text datasets. We are not writing or generating a
-new pretraining dataset. We are also not doing chat fine-tuning until the base
-checkpoint can produce coherent English continuations.
+This is the authoritative stage order. A checked implementation box means the
+repository contains an executable mechanism; it does not mean a production
+artifact has passed. Evidence from every exit gate is stored in ignored output
+directories and referenced by checksum from the production run manifest.
 
-The target is the approximately 1-billion-parameter architecture in
-`configs/1b.yaml`, trained locally on one RTX 4080. The cheap validation stages
-use this same 1B architecture with very short runs; there is no smaller-model
-training stage or prerequisite.
+The architecture remains `configs/1b.yaml`: 921,773,568 parameters, 2,048-token
+context, and an initially configured 8,192-entry vocabulary. The production
+model starts from random weights on one RTX 4080. No stage below authorizes the
+long training run by itself.
 
-## Non-goals
+## Capability boundary
 
-- No Google Colab, Google Drive, hosted-notebook, or remote-session workflow.
-- No hand-authored, templated, or synthetic corpus presented as base data.
-- No chat template, assistant persona, SFT, preference training, tools, RAG, or
-  OpenAI-compatible serving during base pretraining.
-- No claim that a base model is a chat assistant. Its first job is coherent text
-  completion; chat behavior comes later.
-- No reuse of old model weights. The approved run starts from a new random seed.
+> Codexa v1 is initially a general-language research model. FineWeb-Edu,
+> Wikipedia, UltraChat and OASST1 may contain incidental programming material,
+> but this training plan does not establish reliable code-generation
+> capability.
 
-## Existing data we will use
+FineWeb-Edu and Wikipedia are the only base-pretraining sources. UltraChat and
+OASST1 are isolated future SFT sources. No code corpus is approved here.
 
-The downloaded sources have distinct jobs:
+## 1. Freeze architecture and initial constraints
 
-- General and educational language: ten pinned shards from
-  `HuggingFaceFW/fineweb-edu`, `sample-10BT`.
-- Encyclopedic and factual prose: the complete pinned English
-  `wikimedia/wikipedia` `20231101.en` snapshot.
-- Later conversational SFT: pinned `HuggingFaceH4/ultrachat_200k` `train_sft`
-  and `test_sft`, plus pinned `OpenAssistant/oasst1` train and validation.
+- [x] Keep the existing decoder-only architecture and exact parameter count.
+- [x] Keep context length 2,048, BF16, microbatch 1, gradient accumulation 32,
+  activation checkpointing, and intended `adamw8bit` production path.
+- [x] Define `schemas/production_run_manifest.schema.json`.
+- [ ] Fill and freeze a production manifest; null decisions are launch blockers.
 
-FineWeb-Edu and Wikipedia form the base-pretraining candidate. UltraChat and
-OASST1 remain role-structured and separate until the base quality gate passes;
-mixing flattened dialogue into base text would discard the supervision needed
-to teach turn taking. Training and validation remain reproducible, and all
-generated artifacts remain ignored by Git.
+Gate: config checksum, parameter count, run UUID, Git revision, optimizer,
+token milestones, initialization, environment, and every input checksum are
+recorded before weights are initialized.
 
-## Stage 1 — Freeze the base specification
+## 2. Verify downloaded manifests and schemas
 
-- [ ] Confirm `configs/1b.yaml` is the rebuild architecture and record its exact
-  parameter count.
-- [ ] Confirm the run creates a newly initialized model and cannot silently
-  resume an old checkpoint.
-- [ ] Record the exact FineWeb-Edu and Wikipedia manifests, mixture weights,
-  tokenizer checksum, token count, code commit, config, seed, and environment.
-- [ ] Keep the vocabulary at 8,192 and context at 2,048 for the first rebuild;
-  change neither while diagnosing language quality.
-- [ ] Create a new run name and empty output directory dedicated to the rebuild.
+- [x] Download and manifest ten pinned FineWeb-Edu shards.
+- [x] Download and manifest all 41 English Wikipedia shards.
+- [x] Download and manifest UltraChat SFT and OASST1 without flattening them.
+- [ ] Re-run manifest checks immediately before preparation and save the report.
 
-### Exit gate
+Gate: no missing file, size mismatch, checksum mismatch, unexpected schema, or
+unapproved revision. Source roles match `configs/data_preparation.yaml`.
 
-One written run manifest identifies every input. The command fails rather than
-loading an old checkpoint or mismatched tokenizer.
+## 3. Clean, deduplicate, and assign stable splits
 
-## Stage 2 — Prove the training path cheaply
+- [x] Implement order-independent normalization, stable identity, exact
+  within-source and cross-source deduplication, rejection accounting, grouped
+  seeded splits, and leakage assertions in `src/data/governance.py`.
+- [x] Record a staged word-shingle fingerprint for near-duplicate audits.
+- [x] Connect the governed semantics to the full SQLite-backed streaming Parquet
+  preparation CLI in `scripts/prepare_base_corpus.py`.
+- [ ] Run scalable near-duplicate clustering, or explicitly approve exact-only
+  deduplication as a recorded production limitation.
 
-- [ ] Run the existing tests with `python -m pytest`.
-- [ ] Run the tiny-overfit test and verify the model memorizes its small fixture.
-- [ ] Run a short FineWeb-Edu smoke job from random weights.
-- [ ] Verify causal labels, document boundaries, validation separation,
-  checkpoint save/resume, and deterministic seed behavior.
-- [ ] Generate fixed samples before training and after the smoke job.
+Required order: normalize; reject invalid; exact-deduplicate inside FineWeb;
+exact-deduplicate inside Wikipedia; exact-deduplicate across both; near-duplicate
+audit; assign complete clusters to splits; tokenize; pack.
 
-### Exit gate
+Gate: zero stable-document or duplicate-cluster overlap; source/reason counters
+sum exactly; results do not change with input order, shard order, or worker
+count. Wikipedia-derived FineWeb copies cannot cross splits.
 
-Loss is finite and falls, the tiny fixture can be overfit, checkpoints resume
-correctly, and fixed-prompt output changes in the expected direction. Any
-failure is fixed here before a long run starts.
+## 4. Benchmark tokenizer candidates
 
-## Stage 3 — Train the 1B base model
+- [x] Reserve stable IDs 4–7 for `<|system|>`, `<|user|>`, `<|assistant|>`, and
+  `<|end|>` while retaining `<pad>=0`, `<bos>=1`, `<eos>=2`, `<unk>=3`.
+- [x] Add a deterministic stratified 8,192-versus-16,384 bake-off.
+- [ ] Run it on the cleaned two-source sample and review the evidence.
+- [ ] Record the explicit production selection; do not infer it from defaults.
 
-- [ ] Train only on the prepared FineWeb-Edu and Wikipedia base mixture.
-- [ ] Start from random weights; do not initialize from any older checkpoint.
-- [ ] Use BF16, gradient accumulation, clipping, warmup, and cosine decay from
-  the existing local training loop.
-- [ ] Save `latest` for recovery and retain milestone checkpoints for comparison.
-- [ ] Log training loss, validation loss, learning rate, gradient norm, tokens
-  processed, throughput, GPU memory, and wall time.
-- [ ] Evaluate and generate the same fixed prompt suite at every milestone.
-- [ ] Stop early for NaN/Inf, persistent validation regression, broken samples,
-  tokenizer mismatch, or corrupted checkpoints.
+Gate: per-source compression, unknowns, round trip, speed, sequence inflation,
+projected tokens/runtime, tokenizer checksum, and embedding parameter impact are
+reported. The 16,384 candidate adds 12,582,912 tied-embedding parameters versus
+8,192; an untied design would add twice that, but this architecture is tied.
 
-This stage is measured in processed tokens, not merely optimizer steps. The
-first complete attempt should consume the prepared corpus once. Additional
-tokens or epochs require evidence from validation and sample quality.
+## 5. Perform final token accounting
 
-## Stage 4 — Base language quality gate
+- [x] Define `schemas/token_accounting_report.schema.json`.
+- [ ] Tokenize all accepted documents for accounting without building the final
+  mixed stream.
+- [ ] Report source-specific document-length percentiles, stored/content tokens,
+  truncation, and trailing discard.
 
-The model must pass deterministic checks before any chat work begins:
+Gate: FineWeb-Edu and Wikipedia counts reconcile from raw rows through cleaned
+documents to tokens. The report checksum is frozen.
 
-- [ ] Complete ordinary English prose with readable grammar and topic continuity.
-- [ ] Continue a short story without immediately collapsing into repetition.
-- [ ] Continue factual/educational prose in the style of the prompt without
-  pretending that factual accuracy has been established.
-- [ ] Preserve basic formatting for lists, headings, quotations, and paragraphs.
-- [ ] Avoid premature EOS, endless loops, copied prompt fragments, and token
-  garbage across the fixed evaluation set.
-- [ ] Beat the untrained checkpoint and earlier milestones on held-out loss.
-- [ ] Pass repetition, distinct-token, and completion-length diagnostics.
-- [ ] Record failures as failures; sampling changes cannot be used to hide a bad
-  checkpoint.
+## 6. Select and record the source mixture
 
-Use greedy decoding as a reproducible health check plus one fixed sampling
-configuration for readability. A checkpoint passes only when the behavior is
-repeatable across a fixed, versioned prompt set.
+- [x] Implement deterministic token-deficit interleaving without oversampling.
+- [ ] Select percentages from post-cleaning token measurements and compute the
+  feasible token budget; `requested_token_percentages: null` is a blocker.
 
-### Exit gate
+Gate: requested and achieved percentages, documents, tokens, truncation,
+discard, repetition count, seed, exhaustion, and sampler state are recorded.
+The production stream is not a FineWeb block followed by a Wikipedia block.
 
-The selected checkpoint is a usable text-completion base model: it can produce
-several coherent paragraphs on multiple unseen prompts without systemic
-repetition or collapse. If it fails, investigate data, tokenization, labels,
-optimization, and training duration before adding chat data.
+## 7. Build deterministic token artifacts
 
-## Stage 5 — Select and preserve the 1B base
+- [x] Insert exactly one EOS after every document and retain boundary offsets.
+- [x] Pack multiple documents efficiently; causal attention crosses boundaries,
+  positions do not reset, the token after EOS is predicted, and no padding is
+  used in complete sequences.
+- [x] Discard the final incomplete sequence and report its tokens.
+- [ ] Build separate FineWeb train/validation and Wikipedia train/validation
+  artifacts plus the deterministic mixed training stream.
 
-- [ ] Compare 1B milestone checkpoints using held-out loss and the fixed prompt
-  suite rather than automatically choosing the final step.
-- [ ] Preserve the selected base checkpoint, tokenizer, manifest, metrics, and
-  generated evaluation samples together.
-- [ ] Document the training-token count, runtime, hardware, limitations, data
-  provenance, and exact quality-gate results.
-- [ ] Keep the base checkpoint immutable before beginning any chat training.
+Gate: repeated builds have identical checksums; no validation document enters
+training; boundary tests inspect IDs and labels; source validation remains
+independent.
 
-## Stage 6 — Chat comes after the base
+## 8. Run tiny-overfit validation
 
-This stage is deliberately blocked until Stage 4 passes. The source data is
-downloaded now so its provenance and format can be audited before training.
+- [x] Report fixture token count, initial/final loss, target-token accuracy,
+  steps, generated text, checkpoint interruption, and resume.
+- [ ] Run against the frozen tokenizer and meet the predeclared thresholds.
 
-- [ ] Preserve the passing base checkpoint unchanged.
-- [ ] Audit UltraChat's synthetic-generation caveat and OASST1's human
-  conversation-tree structure, quality, and licenses.
-- [ ] Build a separate, versioned SFT mixture from accepted examples without
-  losing message roles or assistant-only label boundaries.
-- [ ] Train assistant-only labels with the repository chat protocol.
-- [ ] Evaluate multi-turn retention, instruction following, factuality,
-  repetition, stop behavior, and base-capability regression.
-- [ ] Expose a checkpoint through the chat server only after those gates pass.
+Gate: final loss at most 0.05 and target-token accuracy at least 0.99 within 500
+steps, unless `configs/base_acceptance_thresholds.yaml` is versioned and frozen
+before the result is inspected.
 
-## Immediate next actions
+## 9. Run full-context production-shape smoke validation
 
-1. Verify the four downloaded source manifests and inspect their schemas.
-2. Implement deterministic FineWeb-Edu plus Wikipedia preparation and mixture
-   accounting; keep dialogue data outside this base path.
-3. Re-train/freeze the tokenizer on the approved base mixture and rebuild token
-   artifacts.
-4. Run tests, a tiny-step 1B validation job, and a short base-mixture smoke job.
-5. Review the evidence, then launch the 1B base pretraining run locally.
+- [x] Add `scripts/benchmark_production_shape.py` using the real 1B model,
+  context 2,048, memmap loader, microbatch 1, accumulation 32, BF16,
+  `adamw8bit`, activation checkpointing, validation, checkpointing, and fixed
+  generation.
+- [ ] Run it on the RTX 4080 with at least 1.5 GB reserved-memory headroom.
 
-The rebuild is successful when Codexa first works as a coherent base text model.
-Chat behavior and serving are later projects, not shortcuts around that
-requirement.
+Gate: no OOM, non-finite loss/gradient, invalid IDs/labels, unexplained skipped
+step, corrupt checkpoint, or nondeterministic greedy output. A short-context
+smoke result cannot satisfy this gate.
 
-The dataset contents, capability expectations, and complete base-to-chat flow
-are explained in `TRAINING_DATA_PLAN.md`.
+## 10. Measure sustained throughput and choose token budget
+
+- [x] Record forward/backward, optimizer, sustained step, validation,
+  generation, checkpoint-write, allocated/reserved VRAM, and wall durations.
+- [x] Estimate runtime for 1B, 3B, 6B, and 10B processed-token candidates and
+  storage for recovery plus milestones.
+- [ ] Run enough post-warmup steps to obtain stable median throughput.
+- [ ] Select and record a production token budget that fits the operator's time
+  and storage constraints.
+
+Gate: the budget is an explicit manifest decision. Corpus size does not imply
+that one full pass is affordable.
+
+## 11. Freeze numeric acceptance thresholds
+
+- [x] Add proposed thresholds in `configs/base_acceptance_thresholds.yaml`.
+- [x] Version the fixed base prompt suite and machine-readable evaluation.
+- [ ] Review and freeze thresholds before inspecting production checkpoints.
+
+Gate: threshold checksum is in the production manifest. Later threshold changes
+require a versioned decision and cannot retroactively rescue a weak checkpoint.
+
+## 12. Train the 1B base from random weights
+
+- [ ] Start only after stages 1–11 pass.
+- [ ] Reject old run directories, mismatched tokenizers/manifests/configs, and
+  unrelated checkpoints.
+- [ ] Schedule warmup, decay, evaluation, generation, and checkpoints by
+  processed tokens wherever practical.
+
+Gate: the selected budget completes without integrity failure. FineWeb-Edu and
+Wikipedia validation losses remain separately visible.
+
+## 13. Compare and preserve milestone checkpoints
+
+- [x] Produce deterministic greedy and fixed-sampling evaluation reports.
+- [x] Report mechanical generation metrics and weighted/source validation.
+- [ ] Add human 1–5 grammar, continuity, and relevance scores blind to step.
+
+Gate: milestone comparison uses frozen thresholds, not final-step preference or
+sampling changes.
+
+## 14. Select an immutable base checkpoint
+
+- [ ] Copy the accepted checkpoint, tokenizer, manifests, environment, reports,
+  and checksums into a versioned immutable bundle.
+- [ ] Prohibit SFT from overwriting this bundle.
+
+Gate: recovery and checksum verification pass from the preserved copy.
+
+## 15. Build tree-safe conversational datasets
+
+- [x] Implement one `chat-v1` serialization contract with reserved role tokens,
+  assistant-only targets, and supervised assistant `<|end|>`.
+- [ ] Use UltraChat `train_sft` only for preparation; preserve `test_sft` as
+  untouched final evaluation.
+- [ ] Reconstruct OASST1 paths by `message_tree_id`; preserve official
+  validation and split no messages or overlapping paths independently.
+- [ ] Filter with reason counters: structural defects, deleted messages, spam,
+  clear PII, duplicates, defective answers, and documented quality thresholds.
+  Retain high-quality refusals and audit samples around every cutoff.
+
+Gate: no root, tree, prompt identity, path, or duplicate cluster crosses a
+split. No incomplete assistant response is supervised.
+
+## 16. Fine-tune controlled conversational variants
+
+- [ ] Fine-tune copies of the immutable base using (A) pure chat SFT and (B)
+  chat SFT plus a small recorded base-language replay percentage.
+- [ ] Never assume replay helps; keep all other settings controlled.
+
+Gate: both variants finish with manifests and supervised-token accounting.
+
+## 17. Evaluate chat and base-capability regression
+
+- [ ] Compare instruction following, multi-turn recall, correction handling,
+  formatting, stopping, repetition, FineWeb validation, Wikipedia validation,
+  and base fixed prompts.
+- [ ] Evaluate UltraChat `test_sft` and OASST1 official validation only at the
+  final selection boundary.
+
+Gate: selected SFT passes chat thresholds without unacceptable base regression.
+
+## 18. Expose only an accepted conversational checkpoint
+
+- [ ] Add serving only after stage 17 passes.
+- [ ] Keep rejected and experimental checkpoints unavailable by default.
+
+Gate: the served checkpoint checksum exactly matches the accepted SFT report.
+
+## Current readiness
+
+- Ready to finish full-corpus data-preparation integration: **yes**.
+- Ready to execute a production-shape smoke test: **not yet**; production mixed
+  token artifacts and the tokenizer decision are missing.
+- Ready for the full base-training launch: **no**; stages 1–11 have not passed.
+
+Detailed data semantics, commands, and limitations are in
+`TRAINING_DATA_PLAN.md`.

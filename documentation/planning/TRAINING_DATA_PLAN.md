@@ -1,155 +1,352 @@
-# Codexa v1 Training Data and Conversation Plan
+# Codexa v1 Training Data Operations
 
-## Short answer: will it talk better?
+This document explains what will be trained, what the repository can execute
+now, and the evidence required before the next gate. `PHASE_PLAN.md` is the
+authoritative 18-stage checklist.
 
-Yes, this rebuild gives Codexa a much better route to usable conversation, but
-base training alone does not create a finished chat assistant.
+## Will it converse better?
 
-The two training stages teach different capabilities:
+Base pretraining on FineWeb-Edu and Wikipedia should improve English, general
+information, explanations, and sustained text. It does not by itself teach a
+user/assistant protocol. Later role-aware SFT on UltraChat and OASST1 teaches
+turn taking, direct answers, follow-ups, and stopping. A weak base cannot be
+repaired reliably by a short SFT run, so both independently evaluated stages
+are required.
 
-1. **Base pretraining** on FineWeb-Edu and Wikipedia teaches English, general
-   information, factual-style prose, topic continuity, and text completion.
-2. **Conversation fine-tuning** on UltraChat and OASST1 teaches user/assistant
-   turns, direct answers, follow-up responses, and when an assistant reply ends.
+This is not a promise of factuality, advanced reasoning, or frontier-model
+quality. Acceptance comes from frozen measurements and blind human scores.
 
-If we stop after base pretraining, the model should complete text more
-coherently, but it may answer prompts like an article rather than a helpful
-assistant. If the base model is weak, conversational fine-tuning will not fix
-the missing language foundation. Both stages are required.
+> Codexa v1 is initially a general-language research model. FineWeb-Edu,
+> Wikipedia, UltraChat and OASST1 may contain incidental programming material,
+> but this training plan does not establish reliable code-generation
+> capability.
 
-Training also cannot guarantee truthfulness, reasoning ability, or ChatGPT-level
-quality. Codexa is a local 921,773,568-parameter research model, so acceptance
-depends on measured output rather than the training run merely finishing.
+## Approved local sources
 
-## The downloaded datasets
+| Role | Source | Local selection | Verified records | Raw Parquet size |
+| --- | --- | --- | ---: | ---: |
+| Base | FineWeb-Edu | ten pinned `sample-10BT` shards | 7,293,000 documents | 21,520,368,509 bytes |
+| Base | English Wikipedia | all 41 pinned `20231101.en` shards | 6,407,814 articles | 11,630,929,031 bytes |
+| Future SFT | UltraChat 200k | `train_sft`, untouched `test_sft` | 230,975 conversations | 813,204,672 bytes |
+| Future SFT | OASST1 | train, untouched official validation | 88,838 message rows | 41,596,430 bytes |
 
-The raw downloads are complete and stored under the ignored `data/raw/`
-directory. They are source data, not yet a final tokenized training mixture.
+Revisions and licenses live in `configs/data_preparation.yaml` and
+`documentation/reference/DATASET.md`. Each raw directory contains a checksummed
+download manifest. This task neither replaces nor redownloads those sources.
 
-| Stage | Dataset | Downloaded content | Local size | Records | What it contributes |
-| --- | --- | --- | ---: | ---: | --- |
-| Base | FineWeb-Edu | 10 `sample-10BT` Parquet shards | 21.5 GB | 7,293,000 documents | Broad English, educational explanations, and general web knowledge |
-| Base | English Wikipedia | Complete `20231101.en` snapshot | 11.6 GB | 6,407,814 articles | Encyclopedic topics, names, concepts, history, science, and factual-style prose |
-| Chat SFT | UltraChat 200k | `train_sft` and `test_sft` | 813 MB | 230,975 conversations | Instruction-and-response patterns across many topics |
-| Chat SFT | OASST1 | Train and validation | 42 MB | 88,838 message rows | Human conversation trees, roles, follow-ups, and quality metadata |
+## Base data contract
 
-Every download is pinned to a repository revision. Each local corpus has a
-`download_manifest.json` containing selected files, byte sizes, and SHA-256
-checksums. Exact revisions and licenses are recorded in
-`documentation/reference/DATASET.md`.
+### Deterministic cleaning order
 
-## What must happen before base training
+1. Normalize Unicode, line endings, control characters, and whitespace.
+2. Reject empty, invalid, or malformed documents with source/reason counters.
+3. Exact-deduplicate FineWeb-Edu internally.
+4. Exact-deduplicate Wikipedia internally.
+5. Exact-deduplicate across both sources to remove direct Wikipedia copies from
+   FineWeb-Edu.
+6. Record near-duplicate fingerprints and run the staged similarity audit.
+7. Assign complete duplicate groups to a split using the seed and stable group
+   identity—not row order, worker count, or Parquet shard order.
+8. Tokenize and pack only after split assignment.
 
-The raw data cannot be passed straight into `scripts/train.py`. The preparation
-pipeline must first produce one reproducible base mixture.
+`src/data/governance.py` implements the in-memory contract and focused leakage
+tests. `scripts/prepare_base_corpus.py` applies the same digest-based split and
+cross-source exact-deduplication semantics at full-corpus scale using SQLite.
+Wikipedia is processed first and deterministically owns identical cross-source
+text; split assignment still uses the shared text digest. Full near-duplicate
+similarity clustering remains deferred and is an explicit production blocker.
 
-1. Clean and normalize FineWeb-Edu and Wikipedia independently.
-2. Remove empty, malformed, and exact duplicate documents.
-3. Create deterministic train and validation splits without leaking documents
-   between them.
-4. Measure each source in documents and tokens.
-5. Choose and record the FineWeb-Edu/Wikipedia token mixture. Do not repeatedly
-   oversample Wikipedia until it dominates the general corpus.
-6. Train or freeze the 8,192-entry tokenizer against the approved base data.
-7. Convert the prepared text into memory-mapped token files.
-8. Write a manifest containing input checksums, tokenizer checksum, mixture,
-   split counts, token counts, seed, and code revision.
+Every chunk from a document inherits that document's split. Every document in a
+canonical/duplicate cluster shares one split. FineWeb and Wikipedia validation
+remain separate even when a weighted combined metric is reported.
 
-The existing 883,814,184-token artifact represents only the original first
-FineWeb-Edu shard. It remains useful for smoke testing, but it is not the new
-FineWeb-Edu plus Wikipedia production corpus.
+### Split ownership
 
-## Stage A: validate the 1B training path
+- FineWeb-Edu: independent train and validation artifacts.
+- Wikipedia: independent train and validation artifacts.
+- Combined training: deterministic interleaving of training documents only.
+- Combined validation: a token-weighted reported value plus both source losses;
+  the combined value never replaces the source values.
+- UltraChat: `train_sft` is the only future preparation input; `test_sft` stays
+  untouched until final evaluation.
+- OASST1: reconstruct paths by root `message_tree_id`; official validation is
+  final evaluation. Roots, messages, prompts, paths, and duplicate clusters may
+  not cross splits.
 
-All validation uses the actual 921,773,568-parameter configuration. There is no
-250M prerequisite.
+## Tokenizer decision
 
-Before a long run:
+The current production candidate is byte-level BPE with an 8,192-entry model
+vocabulary. It is not frozen until the bake-off report is approved.
 
-- run the full test suite;
-- prove the 1B model can overfit the tiny deterministic fixture;
-- run a short base-mixture smoke job from random weights;
-- verify causal labels, document boundaries, validation separation, checkpoint
-  recovery, tokenizer compatibility, finite loss, and falling loss;
-- compare fixed prompt output before and after the smoke run.
+Stable reserved IDs are:
 
-A failed check stops the launch. Sampling settings must not be used to disguise
-bad data, broken labels, repetition, or a weak checkpoint.
+| ID | Token |
+| ---: | --- |
+| 0 | `<pad>` |
+| 1 | `<bos>` |
+| 2 | `<eos>` |
+| 3 | `<unk>` |
+| 4 | `<|system|>` |
+| 5 | `<|user|>` |
+| 6 | `<|assistant|>` |
+| 7 | `<|end|>` |
 
-## Stage B: train the 1B base model
+`scripts/compare_tokenizers.py` trains 8,192 and 16,384 candidates from the same
+stable, source-stratified cleaned sample. It reports bytes/token,
+characters/token, tokens/document, total tokens, unknowns, round-trip failures,
+encoding/decoding speed, per-source compression, sequence inflation, projected
+corpus tokens/runtime, checksums, and embedding parameter impact. It never edits
+`configs/1b.yaml` or selects a winner automatically.
 
-Start the model from new random weights and train it on only the approved
-FineWeb-Edu plus Wikipedia token stream. Record processed tokens, not only
-optimizer steps.
+## Packing contract
 
-At milestones, save checkpoints and run the same fixed prompts covering:
+The initial base policy is versioned by `production_packing_policy()`:
 
-- ordinary English prose;
-- educational explanations;
-- factual-style and encyclopedic continuations;
-- short stories;
-- headings, lists, quotations, and paragraphs;
-- repetition, premature stopping, and malformed token output.
+- concatenate unique documents efficiently with one `<eos>` after each;
+- allow multiple documents in a 2,048-token sequence;
+- predict the next document's first token from the preceding EOS;
+- allow causal attention across document boundaries;
+- do not reset position IDs at document boundaries;
+- use no padding for complete base sequences and therefore mask no positions;
+- discard and count the one final incomplete sequence per split;
+- retain every document's token start, end, EOS position, source, and ID;
+- use identical semantics for training and validation.
 
-The base passes only if unseen prompts produce readable, connected text across
-multiple topics and held-out loss improves. This checkpoint is preserved before
-any conversational training begins.
+This simple policy avoids custom block-diagonal attention while preserving
+auditable boundaries. If padding is introduced later, its token ID is 0 and all
+padding labels must be `-100`.
 
-## Stage C: prepare conversation data
+## Source mixture and token budget
 
-UltraChat and OASST1 must remain separate from the base corpus. Flattening them
-into plain text would throw away who said each message and which tokens should
-teach the assistant.
+The production percentage is deliberately unset. It must be chosen from the
+post-cleaning, selected-tokenizer accounting report—not raw bytes or raw rows.
 
-Preparation must:
+`src/data/mixture.py` orders documents by a seeded stable hash and repeatedly
+selects the source furthest below its requested token share. It never repeats or
+oversamples documents. It reports requested/achieved shares, documents, source
+tokens, last-document truncation, exhausted sources, and repetition count.
 
-1. preserve `user` and `assistant` roles;
-2. reconstruct valid OASST1 conversation paths from its message trees;
-3. remove deleted, malformed, unsafe, duplicate, and low-quality examples;
-4. retain genuine multi-turn examples, not only single question/answer pairs;
-5. serialize both datasets with one versioned chat format;
-6. calculate loss on assistant answers only;
-7. create conversation-level train and validation splits so turns from one
-   conversation cannot leak across splits;
-8. record the final source mixture and supervised-token count.
+The final token budget is also unset. The full corpus is not automatically one
+training epoch. The production-shape benchmark estimates 1B, 3B, 6B, and 10B
+token runtimes from sustained post-warmup throughput. The operator records the
+chosen budget in the production manifest after reviewing wall time and storage.
 
-UltraChat provides breadth but was model-generated and filtered. OASST1 adds
-human-generated and human-annotated conversations. Their quality must be
-measured before choosing the final mixture.
+## Checkpoint and resume contract
 
-## Stage D: conversation fine-tuning
+Existing checkpoints contain model, optimizer, scheduler, GradScaler, global
+microstep/optimizer step/tokens, epoch and batch cursor, best validation, Python,
+NumPy, CPU RNG, and CUDA RNG states. Production checkpoints now also record:
 
-Fine-tune a copy of the accepted base checkpoint on the prepared conversational
-mixture. Do not overwrite the base checkpoint.
+- microstep within gradient accumulation;
+- data-manifest and configuration checksums;
+- Git revision and run UUID;
+- epoch/batch data cursor and mixture-sampler state;
+- Python/PyTorch/CUDA/OS/GPU environment information;
+- tokenizer checksum.
 
-The resulting model must pass fixed multi-turn tests for:
+Writes use a temporary file, atomic replacement, SHA-256 sidecar, verification,
+and an atomic `.complete.json` marker containing size, checksum, step, and write
+duration. Resume rejects config or data-manifest mismatch. The exact CPU resume
+test compares uninterrupted and interrupted data position, loss trajectory,
+parameters, and optimizer state bit for bit. Bitwise identity across different
+GPU/driver/PyTorch environments is not promised.
 
-- answering the user's actual question directly;
-- remembering a name or fact introduced earlier in the conversation;
-- handling a correction in a later turn;
-- following simple formatting instructions;
-- producing one assistant response and stopping correctly;
-- avoiding repeated phrases and conversation loops;
-- retaining the base model's general-language ability.
+Limitation: checkpoint payload persistence is atomic at file level, not yet an
+atomically renamed multi-file directory bundle. The completion marker prevents
+an unverified file being treated as complete, but directory-bundle promotion is
+deferred before declaring the recovery design final.
 
-Only a checkpoint that passes these tests should be exposed through a chat
-interface. A low training loss by itself is not proof that it can converse.
+## Full production-shape benchmark
 
-## Current status
+`scripts/benchmark_production_shape.py` refuses non-CUDA, non-BF16, non-2,048
+context, or a parameter count other than 921,773,568. It runs the actual memmap
+loader, microbatch 1, accumulation 32, `adamw8bit`, activation checkpointing,
+validation, checkpoint save, and fixed prompt generation.
 
-- [x] Select existing licensed general, Wikipedia, and conversation datasets.
-- [x] Download and checksum 10 FineWeb-Edu shards.
-- [x] Download and checksum the complete English Wikipedia snapshot.
-- [x] Download and checksum UltraChat SFT and OASST1.
-- [x] Validate Parquet schemas, record counts, manifests, and file sizes.
-- [ ] Implement the deterministic FineWeb-Edu plus Wikipedia preparation path.
-- [ ] Decide the base token mixture after measuring cleaned token counts.
-- [ ] Build and verify the new tokenizer and token stream.
-- [ ] Pass the 1B tiny-overfit and base-mixture smoke gates.
-- [ ] Train and select the 1B base checkpoint.
-- [ ] Build the role-aware conversational SFT mixture.
-- [ ] Fine-tune and evaluate the conversational checkpoint.
+It excludes warmup measurements and reports median sustained tokens/s,
+sequences/s, step duration, forward/backward duration, optimizer duration, peak
+allocated/reserved memory, required free headroom, checkpoint-write duration,
+validation/generation overhead, token-budget ETA, and checkpoint storage.
 
-The immediate next task is data preparation and token accounting. Starting the
-long training run before that work is complete would train on the wrong or
-incompletely prepared input.
+The benchmark fails on command failure, probable OOM, non-finite loss, corrupt
+output, wrong shape, or less than the requested 1.5 GB VRAM headroom. It creates
+a benchmark-only schedule copy; it does not change production configuration.
+
+## Numeric quality gates
+
+Proposed thresholds are in `configs/base_acceptance_thresholds.yaml`. They must
+be reviewed and frozen by checksum before production outputs are inspected.
+
+### Tiny overfit
+
+- fixture and token count recorded;
+- final loss at most 0.05;
+- target-token accuracy at least 0.99;
+- at most 500 optimizer steps;
+- deterministic completion recorded;
+- interrupted/resumed checkpoint completes successfully.
+
+### Smoke training
+
+- finite losses and gradients throughout;
+- zero invalid IDs, malformed labels, or split overlap;
+- at least 5% loss improvement across a predeclared 1,048,576-token interval;
+- exact checkpoint save/resume test passes;
+- deterministic greedy output;
+- zero unexplained skipped optimizer steps or corrupt checkpoints.
+
+### Base checkpoint
+
+Report FineWeb loss, Wikipedia loss, weighted loss, completion length,
+premature-EOS rate, repeated 4-gram rate, longest repeated span, distinct-2,
+distinct-3, prompt-copy rate, Unicode/token errors, and maximum-length rate.
+Human reviewers add blind 1–5 grammar, topic-continuity, and prompt-relevance
+scores. Greedy decoding is the deterministic health check; one fixed sampling
+configuration is used only for readability. Sampling cannot be tuned per
+checkpoint.
+
+## Conversational preparation and SFT
+
+`src/sft.py` defines the initial `chat-v1` format. System/user text and all role
+tokens are masked. Assistant text and its ending `<|end|>` are supervised.
+Conversation examples must end in a complete assistant turn; overlength examples
+are discarded rather than training on a half-truncated assistant response.
+Multiple conversations are not packed together in the initial policy.
+
+Future preparation must remove deleted/broken messages, malformed paths, spam,
+clear PII, exact duplicates, defective answers, and examples below documented
+rank/review/quality cutoffs. It must retain good refusals and boundary-setting
+answers, genuine multi-turn paths, and rejection counts. Samples immediately on
+both sides of every cutoff require manual audit.
+
+The immutable base will produce two controlled variants: pure SFT, and SFT with
+a small recorded percentage of base-language replay. Selection uses chat,
+multi-turn memory, correction, formatting, stopping, repetition, both source
+validation losses, and base prompts. Replay is not assumed beneficial.
+
+## Operator commands
+
+These commands produce ignored artifacts. Read each `--help` before use.
+
+### Repository and parameter gate
+
+```bash
+source .venv/bin/activate
+python -m pytest
+python tests/test_model.py
+python - <<'PY'
+from src.config import load_config
+from src.model import LanguageModel, count_parameters
+config = load_config("configs/1b.yaml")
+print(count_parameters(LanguageModel(config.model)))
+PY
+```
+
+Expected parameter count: `921773568`.
+
+### Manifest/schema inspection
+
+```bash
+python scripts/download_fineweb_edu.py --help
+python scripts/download_language_corpora.py --help
+python scripts/prepare_fineweb_edu.py --help
+```
+
+Do not invoke the download commands merely to validate existing data. Verify the
+local manifests and their recorded checksums during the preparation integration.
+
+### Tokenizer bake-off
+
+```bash
+python -m scripts.prepare_base_corpus \
+  --fineweb-root data/raw/fineweb-edu-10bt/sample/10BT \
+  --wikipedia-root data/raw/wikipedia/20231101.en \
+  --output-dir data/processed/base-v1 \
+  --validation-ratio 0.005 \
+  --seed 42
+
+python -m scripts.compare_tokenizers \
+  --config configs/tokenizer_bakeoff.yaml \
+  --fineweb-jsonl data/processed/base/fineweb-clean.jsonl \
+  --wikipedia-jsonl data/processed/base/wikipedia-clean.jsonl \
+  --output-dir logs/tokenizer-bakeoff-v1
+```
+
+### Token build and inspection
+
+```bash
+python -m scripts.train_tokenizer --help
+python -m scripts.tokenize_dataset --help
+python -m scripts.inspect_token_data --help
+python -m scripts.benchmark_token_data --help
+```
+
+### Tiny-overfit gate
+
+```bash
+python -m scripts.run_tiny_overfit \
+  --config configs/tiny_overfit.yaml \
+  --tokenizer checkpoints/tokenizer-base-v1/tokenizer.json \
+  --target-loss 0.05 \
+  --target-accuracy 0.99 \
+  --run-name codexa-base-tiny-overfit-v1
+```
+
+### Production-shape benchmark
+
+```bash
+python -m scripts.benchmark_production_shape \
+  --config configs/1b.yaml \
+  --train-token-file data/tokenized/base-v1/train.bin \
+  --validation-token-file data/tokenized/base-v1/validation.bin \
+  --token-manifest data/tokenized/base-v1/token_data_manifest.json \
+  --tokenizer checkpoints/tokenizer-base-v1/tokenizer.json \
+  --steps 12 \
+  --warmup-steps 2 \
+  --output-dir logs/production-shape-v1
+```
+
+Twelve steps are a functional minimum, not automatically a stable benchmark.
+Increase sustained steps if throughput remains variable.
+
+### Preflight and production launch shape
+
+```bash
+python -m scripts.preflight_full_run \
+  --config configs/1b.yaml \
+  --token-manifest data/tokenized/base-v1/token_data_manifest.json \
+  --train-token-file data/tokenized/base-v1/train.bin \
+  --validation-token-file data/tokenized/base-v1/validation.bin \
+  --checkpoint-dir checkpoints \
+  --output logs/preflight-base-v1.json
+
+python -m scripts.train --help
+```
+
+The second command is intentionally `--help`. Do not launch production until
+the manifest contains a selected tokenizer, mixture, token budget, frozen
+threshold checksum, and evidence that stages 1–11 passed.
+
+### Source-specific checkpoint evaluation
+
+```bash
+python -m scripts.evaluate_checkpoint \
+  --checkpoint checkpoints/codexa-base-v1/milestones/step_XXXXXXXXX.pt \
+  --tokenizer checkpoints/tokenizer-base-v1/tokenizer.json \
+  --prompts configs/evaluation_prompts.json \
+  --source-validation fineweb_edu data/tokenized/fineweb-v1/validation.bin data/tokenized/fineweb-v1/token_data_manifest.json \
+  --source-validation wikipedia data/tokenized/wikipedia-v1/validation.bin data/tokenized/wikipedia-v1/token_data_manifest.json \
+  --device cuda \
+  --output logs/evaluations/checkpoint-XXXXXXXXX-greedy.json
+```
+
+## Readiness statement
+
+- Ready for repository-level deterministic unit validation: **yes**.
+- Ready for full exact-deduplicated data preparation: **yes**. Full
+  near-duplicate similarity clustering remains a separate unresolved production
+  decision.
+- Ready for the production-shape smoke: **no**—the approved mixed token artifact
+  and tokenizer decision do not exist yet.
+- Ready for the full base-training launch: **no**—do not launch until every gate
+  through stage 11 passes and the production manifest is complete.

@@ -1,5 +1,10 @@
 """Evaluate one Codexa checkpoint with validation loss and fixed prompts."""
 
+from pathlib import Path as _BootstrapPath
+import sys as _bootstrap_sys
+_bootstrap_sys.path.insert(0, str(_BootstrapPath(__file__).resolve().parents[1]))
+import workspace_bootstrap
+
 import argparse
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -10,6 +15,7 @@ from pathlib import Path
 import re
 import sys
 import tempfile
+import time
 
 import numpy as np
 import torch
@@ -18,22 +24,22 @@ import torch
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.generate import _checkpoint_model_config
-from src.checkpointing import load_model_checkpoint, verify_checkpoint_checksum
+from llm_architecture.checkpointing import checkpoint_model_config as _checkpoint_model_config
+from llm_training.checkpointing import load_model_checkpoint, verify_checkpoint_checksum
 from src.evaluation import (
     analyze_generated_text,
     ngram_overlap_rate,
     perplexity_from_loss,
 )
-from src.generate import GenerationConfig, generate_sequences
-from src.model import LanguageModel, count_parameters
-from src.token_data import (
+from llm_inference.generate import GenerationConfig, generate_sequences
+from llm_architecture.model import LanguageModel, count_parameters
+from llm_data.token_data import (
     MemmapTokenDataset,
     create_token_dataloader,
     file_sha256,
 )
-from src.tokenizer import BOS_TOKEN, EOS_TOKEN, load_tokenizer
-from src.training import evaluate, resolve_device, resolve_precision
+from llm_tokenizer.tokenizer import BOS_TOKEN, EOS_TOKEN, load_tokenizer
+from llm_training.training import evaluate, resolve_device, resolve_precision
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -49,6 +55,15 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--validation-token-file", type=Path)
     parser.add_argument("--token-manifest", type=Path)
+    parser.add_argument("--validation-token-offset", type=int, default=0)
+    parser.add_argument("--validation-token-count", type=int)
+    parser.add_argument(
+        "--source-validation",
+        action="append",
+        nargs=3,
+        metavar=("NAME", "TOKEN_FILE", "MANIFEST"),
+        help="Evaluate a named source independently; repeat for each source.",
+    )
     parser.add_argument("--max-validation-batches", type=int, default=16)
     parser.add_argument("--reference-jsonl", type=Path)
     parser.add_argument("--max-reference-documents", type=int, default=1000)
@@ -57,6 +72,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--top-k", type=int)
     parser.add_argument("--top-p", type=float)
     parser.add_argument("--repetition-penalty", type=float, default=1.0)
+    parser.add_argument("--instruction-template")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--overwrite", action="store_true")
     return parser
@@ -290,6 +306,7 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
         raise ValueError("Tokenizer must use <bos>=1 and <eos>=2.")
     validation_loss: float | None = None
     validation_tokens = 0
+    validation_start = time.perf_counter()
     if (arguments.validation_token_file is None) != (
         arguments.token_manifest is None
     ):
@@ -332,6 +349,8 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
             dtype=dtype,
             context_length=model_config.context_length,
             model_vocab_size=model_config.vocab_size,
+            token_offset=arguments.validation_token_offset,
+            token_count=arguments.validation_token_count,
         )
         loader = create_token_dataloader(
             dataset,
@@ -349,6 +368,48 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
             max_batches=arguments.max_validation_batches,
             non_blocking=device.type == "cuda",
         )
+    validation_duration_seconds = time.perf_counter() - validation_start
+    source_validation: dict[str, dict[str, float | int]] = {}
+    if arguments.source_validation:
+        for name, token_file_text, manifest_text in arguments.source_validation:
+            if name in source_validation:
+                raise ValueError(f"Duplicate source-validation name {name!r}.")
+            token_file = Path(token_file_text)
+            source_manifest = json.loads(Path(manifest_text).read_text(encoding="utf-8"))
+            if source_manifest.get("tokenizer_sha256") != tokenizer_checksum:
+                raise ValueError(f"{name} tokenizer checksum mismatch.")
+            checksums = source_manifest.get("output_checksums")
+            if not isinstance(checksums, dict) or file_sha256(token_file) != checksums.get("validation"):
+                raise ValueError(f"{name} validation checksum mismatch.")
+            source_dataset = MemmapTokenDataset(
+                token_file,
+                dtype=np.dtype(source_manifest["dtype"]),
+                context_length=model_config.context_length,
+                model_vocab_size=model_config.vocab_size,
+            )
+            source_loader = create_token_dataloader(
+                source_dataset,
+                batch_size=1,
+                shuffle=False,
+                num_workers=0,
+                pin_memory=device.type == "cuda",
+            )
+            source_loss, source_tokens = evaluate(
+                model,
+                source_loader,
+                device=device,
+                precision=resolve_precision(
+                    "bf16" if device.type == "cuda" else "fp32",
+                    device,
+                ),
+                max_batches=arguments.max_validation_batches,
+                non_blocking=device.type == "cuda",
+            )
+            source_validation[name] = {
+                "loss": source_loss,
+                "perplexity": perplexity_from_loss(source_loss),
+                "tokens": source_tokens,
+            }
 
     reference_text = (
         None
@@ -376,6 +437,7 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
         seed=arguments.seed,
     )
     samples: list[dict[str, object]] = []
+    generation_start = time.perf_counter()
     for prompt_entry in _read_prompts(arguments.prompts):
         prompt, prompt_ids = _build_prompt(
             prompt_entry,
@@ -435,6 +497,11 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
                 is not None
             ),
             "quality": analyze_generated_text(continuation).to_dict(),
+            "prompt_four_gram_overlap": ngram_overlap_rate(
+                continuation,
+                prompt,
+                ngram_size=4,
+            ),
             "reference_eight_gram_overlap": (
                 None
                 if reference_text is None
@@ -446,6 +513,7 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
             ),
         }
         samples.append(sample)
+    generation_duration_seconds = time.perf_counter() - generation_start
 
     report = {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -466,18 +534,66 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
             else perplexity_from_loss(validation_loss)
         ),
         "validation_token_count": validation_tokens,
+        "validation_duration_seconds": validation_duration_seconds,
+        "source_validation": source_validation,
+        "weighted_source_validation_loss": (
+            None
+            if not source_validation
+            else sum(
+                float(value["loss"]) * int(value["tokens"])
+                for value in source_validation.values()
+            )
+            / sum(int(value["tokens"]) for value in source_validation.values())
+        ),
         "validation_token_sha256": (
             None
             if arguments.validation_token_file is None
             else file_sha256(arguments.validation_token_file)
         ),
         "generation_config": asdict(generation_config),
+        "generation_duration_seconds": generation_duration_seconds,
         "reference_document_limit": (
             None
             if arguments.reference_jsonl is None
             else arguments.max_reference_documents
         ),
         "samples": samples,
+        "aggregate_generation_metrics": {
+            "average_completion_length": sum(
+                int(sample["generated_token_count"]) for sample in samples
+            ) / len(samples),
+            "premature_eos_rate": sum(
+                sample["finish_reason"] == "eos" and int(sample["generated_token_count"]) < 8
+                for sample in samples
+            ) / len(samples),
+            "maximum_length_rate": sum(
+                sample["finish_reason"] == "length" for sample in samples
+            ) / len(samples),
+            "mean_repeated_4gram_rate": sum(
+                float(sample["quality"]["repeated_ngram_rate"]) for sample in samples
+            ) / len(samples),
+            "maximum_longest_repeated_span": max(
+                int(sample["quality"]["longest_repeated_span"]) for sample in samples
+            ),
+            "mean_distinct_2": sum(
+                float(sample["quality"]["distinct_2"]) for sample in samples
+            ) / len(samples),
+            "mean_distinct_3": sum(
+                float(sample["quality"]["distinct_3"]) for sample in samples
+            ) / len(samples),
+            "mean_prompt_copy_rate": sum(
+                float(sample["prompt_four_gram_overlap"]) for sample in samples
+            ) / len(samples),
+            "invalid_unicode_count": sum(
+                int(sample["quality"]["malformed_character_count"]) for sample in samples
+            ),
+            "malformed_token_count": 0,
+            "human_scores": {
+                "grammar": None,
+                "topic_continuity": None,
+                "prompt_relevance": None
+            }
+        },
     }
     for value in (
         report["validation_loss"],

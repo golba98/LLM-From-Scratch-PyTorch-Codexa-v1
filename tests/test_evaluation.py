@@ -3,7 +3,11 @@
 import json
 import math
 from pathlib import Path
+import sys
 from types import SimpleNamespace
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.evaluate_checkpoint import (
     _build_prompt,
@@ -65,12 +69,11 @@ def main() -> None:
     assert ngram_overlap_rate("too short", "too short", ngram_size=4) == 0
 
     prompts = _read_prompts(Path("configs/evaluation_prompts.json"))
-    instruction_prompts = _read_prompts(
-        Path("configs/instruction_evaluation_prompts.json")
-    )
-    assert len(instruction_prompts) == 8
+    assert len(prompts) >= 10
     long_context = next(
-        prompt for prompt in prompts if prompt["category"] == "long_context"
+        prompt
+        for prompt in prompts
+        if prompt["category"] == "long_context_retention"
     )
     rendered, token_ids = _build_prompt(
         long_context,

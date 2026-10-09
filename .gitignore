@@ -1,4 +1,5 @@
 .venv/
+.venv-specialist/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -17,4 +18,27 @@ backups/*
 !data/tokenized/.gitkeep
 !releases/.gitkeep
 !backups/.gitkeep
+exports/*
+!exports/.gitkeep
+.codex/
 .DS_Store
+CLAUDE.md
+
+data/memory/
+
+validation/
+artifacts-local/
+*.egg-info/
+build/
+dist/
+
+# Local migration recovery and protected inputs
+preservation/
+artifacts.local.json
+outputs/
+LLM-From-Scratch/
+
+# Shared infrastructure links are local, not packaged source
+/build
+/preservation
+/validation

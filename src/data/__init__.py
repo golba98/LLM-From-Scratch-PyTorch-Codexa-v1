@@ -1,5 +1,2 @@
-"""Dataset preparation utilities."""
-
-from src.data.io import TextDocument
-
-__all__ = ["TextDocument"]
+"""Legacy package; children alias their owning implementation."""
+from llm_data.data import TextDocument

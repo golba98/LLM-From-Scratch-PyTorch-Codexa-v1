@@ -4,7 +4,7 @@ The active configuration is `configs/1b.yaml`.
 
 | Layers | Hidden | Heads | SwiGLU width | Context | Vocabulary | Parameters |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 24 | 1,536 | 24 | 6,144 | 2,048 | 8,192 | 921,773,568 |
+| 24 | 1,536 | 24 | 6,144 | 2,048 | 16,384 | 934,356,480 |
 
 The model is a pre-normalized decoder-only Transformer with RMSNorm, causal
 scaled-dot-product attention, SwiGLU feed-forward layers, learned position
@@ -19,7 +19,7 @@ flowchart TD
     D --> E["Transformer block x 24"]
     E --> F["Final RMSNorm"]
     F --> G["Tied language-model head"]
-    G --> H["Next-token logits B x T x 8192"]
+    G --> H["Next-token logits B x T x 16384"]
 ```
 
 Each Transformer block applies pre-normalized causal self-attention followed by

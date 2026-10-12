@@ -5,6 +5,10 @@ source is preserved in the private, content-addressed archive identified by
 `HISTORICAL_SOURCE_V1.json`. The inventory is suitable for Git; the archive is
 ignored because it also contains working-tree diffs and installed-package
 metadata. Ten of the twelve job-bound source files were not committed to Git.
+Each frozen source entry in the inventory records its owner repository, original
+relative path, and a byte-matching Git commit when one exists. Only
+`llm_architecture.model` and `llm_data.token_data` have such a commit; the other
+ten require the private archive.
 
 From `LLM-From-Scratch`, verify using any Python 3.11+ interpreter:
 

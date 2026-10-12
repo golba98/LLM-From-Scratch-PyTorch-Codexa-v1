@@ -12,11 +12,13 @@ import json
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import tarfile
 import tempfile
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE = ROOT.parent
 RUN = ROOT / "outputs/training/codexa-934m-foundation-5h-v1/config/job.json"
 ORIGINAL = ROOT / "outputs/preservation/historical-source/codexa-934m-foundation-5h-v1"
 STORE = ROOT / "outputs/preservation/historical-source/durable"
@@ -70,6 +72,41 @@ def scan_private_material(manifest: dict) -> dict:
     return counts
 
 
+def source_record(name: str, row: dict) -> dict:
+    """Map a frozen source identity to its owner and byte-matched Git history."""
+    if name.startswith("src/codexa_workspace/"):
+        repository = "LLM-From-Scratch"
+        relative = name
+    else:
+        package, module = name.rsplit(".", 1)
+        repository = {
+            "llm_architecture": "LLM-Architecture",
+            "llm_data": "LLM-Data",
+            "llm_training": "LLM-Training",
+        }[package]
+        relative = f"src/{package}/{module}.py"
+    history = subprocess.run(
+        ["git", "log", "--all", "--format=%H", "--", relative],
+        cwd=WORKSPACE / repository, capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    recovery_commit = None
+    for revision in history:
+        blob = subprocess.run(
+            ["git", "show", f"{revision}:{relative}"],
+            cwd=WORKSPACE / repository, capture_output=True, check=True,
+        ).stdout
+        if hashlib.sha256(blob).hexdigest() == row["sha256"]:
+            recovery_commit = revision
+            break
+    return {
+        "archive_path": row["copy"],
+        "sha256": row["sha256"],
+        "repository": repository,
+        "original_relative_path": relative,
+        "git_recovery_commit": recovery_commit,
+    }
+
+
 def create() -> dict:
     manifest = original_manifest()
     findings = scan_private_material(manifest)
@@ -106,7 +143,7 @@ def create() -> dict:
             "original_manifest_sha256": digest(ORIGINAL / "MANIFEST.json"),
             "file_count": len(manifest["files"]),
             "files": manifest["files"],
-            "code_identity": {name: {"archive_path": row["copy"], "sha256": row["sha256"]}
+            "code_identity": {name: source_record(name, row)
                               for name, row in manifest["code_identity"].items()},
             "component_paths": {"llm_architecture": "LLM-Architecture/src/llm_architecture",
                                 "llm_data": "LLM-Data/src/llm_data",

@@ -4,50 +4,86 @@
   "code_identity": {
     "llm_architecture.model": {
       "archive_path": "code-identity/llm_architecture/model.py",
+      "git_recovery_commit": "6155dd09979a8372e4808821ad701f1b6056e09f",
+      "original_relative_path": "src/llm_architecture/model.py",
+      "repository": "LLM-Architecture",
       "sha256": "b7f857ad8a10ff022ccb3b8873fcf687f3acf990cae12c94aea97a874c867a74"
     },
     "llm_data.token_data": {
       "archive_path": "code-identity/llm_data/token_data.py",
+      "git_recovery_commit": "0de6f5d18ea5a5a7d2f84bcea5ce4d240abcf07d",
+      "original_relative_path": "src/llm_data/token_data.py",
+      "repository": "LLM-Data",
       "sha256": "da9506f860e4be149d4497b54534dc0bea88e14c82400a7244083227e40ed261"
     },
     "llm_data.token_views": {
       "archive_path": "code-identity/llm_data/token_views.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/llm_data/token_views.py",
+      "repository": "LLM-Data",
       "sha256": "8bff2c14183116a2ced3ac5cfef79c58d5eaf4efbf621899d281adf567ba1a5b"
     },
     "llm_training.checkpointing": {
       "archive_path": "code-identity/llm_training/checkpointing.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/llm_training/checkpointing.py",
+      "repository": "LLM-Training",
       "sha256": "c3094aa94df7a6a8ead610961db059ca9698731964c57f3dd3e5b914d09f8f6b"
     },
     "llm_training.pretrain_run": {
       "archive_path": "code-identity/llm_training/pretrain_run.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/llm_training/pretrain_run.py",
+      "repository": "LLM-Training",
       "sha256": "5fd5e87e7a5b0dcfc52ebc6e50125fa91cb558f8352c67594a1b8b7879046f7b"
     },
     "llm_training.recovery": {
       "archive_path": "code-identity/llm_training/recovery.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/llm_training/recovery.py",
+      "repository": "LLM-Training",
       "sha256": "963c150e80e9a25c18669f345fe1b865d516b15e59a7846f8223579fac28df68"
     },
     "llm_training.session": {
       "archive_path": "code-identity/llm_training/session.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/llm_training/session.py",
+      "repository": "LLM-Training",
       "sha256": "fcd51d3b0542a7bd0357042f7f26f99aec032d9b0fc8d9cee5d3ddff17c92921"
     },
     "llm_training.training": {
       "archive_path": "code-identity/llm_training/training.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/llm_training/training.py",
+      "repository": "LLM-Training",
       "sha256": "33fb0e2a6520bbc1233ed42cfa7018d501f07e3bf4849295b5fefb594eaf6ec0"
     },
     "src/codexa_workspace/foundation_diagnosis.py": {
       "archive_path": "code-identity/src/codexa_workspace/foundation_diagnosis.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/codexa_workspace/foundation_diagnosis.py",
+      "repository": "LLM-From-Scratch",
       "sha256": "18f6b72e8e9727f65093766f5a67df9eca926b2d71ab4a7abed21f7201de9f73"
     },
     "src/codexa_workspace/foundation_training.py": {
       "archive_path": "code-identity/src/codexa_workspace/foundation_training.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/codexa_workspace/foundation_training.py",
+      "repository": "LLM-From-Scratch",
       "sha256": "59dbcd969126be557f219443583cdc3beeaca3756e04bfbbe771ff34c508897f"
     },
     "src/codexa_workspace/training_supervisor.py": {
       "archive_path": "code-identity/src/codexa_workspace/training_supervisor.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/codexa_workspace/training_supervisor.py",
+      "repository": "LLM-From-Scratch",
       "sha256": "a6140e202181b509f00c4e46dbd384cc282234d86afe500e4a9b6747e4b4b45c"
     },
     "src/codexa_workspace/training_wakeup.py": {
       "archive_path": "code-identity/src/codexa_workspace/training_wakeup.py",
+      "git_recovery_commit": null,
+      "original_relative_path": "src/codexa_workspace/training_wakeup.py",
+      "repository": "LLM-From-Scratch",
       "sha256": "e85e9e2f8098a033b162d3ea6356195b74cbf862f4f4dd929411b3a287487a17"
     }
   },

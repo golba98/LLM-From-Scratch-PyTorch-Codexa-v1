@@ -881,3 +881,14 @@ Repaired per-update telemetry for SFT runs (append-only `metrics/telemetry.jsonl
 - **Regression:** 464 integration tests plus all component and audit suites pass; checkpoints unchanged.
 - **Verdict:** READY TO PREPARE NEW FOUNDATION EXPERIMENT (10 h continuation of the 934M; not prepared or launched).
 - **Reports:** `outputs/diagnostics/codexa-934m-foundation-capability/20261012T213231Z/{FOUNDATION_CAPABILITY_ASSESSMENT,TRAINING_TELEMETRY_REPAIR,NEXT_TRAINING_STRATEGY}.md`.
+
+## 2026-10-13 — Step 6: 10-hour foundation continuation prepared and frozen (not authorized)
+
+Prepared `codexa-934m-foundation-continuation-10h-v1`, job `6d9d8453fa504f15841b7e3b6a1b31cc0776462a40d19db717ee893a039e0ef6`. No training was run.
+- **Initialization:** weights only from foundation ca779a16, with a fresh AdamW8bit optimizer and a fresh cosine schedule (warmup 20, 2e-5 to 2e-6).
+- **Data:** the seed-42 permutation continued from position 57,344, giving 114,688 windows and 234.9M tokens. It is disjoint from the 5-hour run, from validation and from base-v1's reconstructed positions. Mix 61.10% FineWeb-Edu / 38.90% Wikipedia; full corpus checksum verified.
+- **Budget:** 36,000 s with a 540 s reserve and a 3,584-update cap; the p95 plan is 31,687 s.
+- **Sealed step-zero baseline** b9e0a920: CE 3.0132 (Wikipedia) / 3.1403 (FineWeb-Edu); plain top-1 126/280.
+- **Engineering:** foundation telemetry (LLM-Training 933358c, 6d4acbc); expanded benchmark (v1 preserved, v2 with 32 per category).
+- **Readiness:** 0 engineering failures. CONDITIONALLY READY: free disk is 43.7 MB below the 180 GiB launch gate.
+- **Reports:** `outputs/preparation/codexa-934m-foundation-10h/20261012T223033Z/`.

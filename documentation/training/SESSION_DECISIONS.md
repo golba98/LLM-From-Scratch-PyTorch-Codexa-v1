@@ -2299,3 +2299,32 @@ Report: `outputs/diagnostics/post-repair-integration/20261012T095454Z/REPORT.md`
   - Correction to the earlier 10-hour note: steady throughput is 8,012 tok/s, not 3,024.
   - Verdict: READY TO PREPARE NEW FOUNDATION EXPERIMENT. No job was prepared or launched.
 - **Commits** (local, not pushed): 9427fa0, fbcc5c0, eccd16a. Audit CLD-000029 to CLD-000031.
+
+## 2026-10-13 — Step 6: prepare the 10-hour foundation continuation (Claude Code; no training)
+
+- **New job identity** `codexa-934m-foundation-continuation-10h-v1`, not an exact continuation of the predecessor:
+  - weights only from ca779a16 with a fresh AdamW8bit optimizer and a fresh, independent cosine schedule;
+  - the predecessor's schedule had already decayed to its floor, its order was exhausted and its code identity is superseded;
+  - hyperparameters are identical to the predecessor apart from the cap and cadences;
+  - the 2e-5 peak is kept as the proven, conservative value; no new hyperparameter was invented.
+- **Data:** the predecessor's seed-42 permutation continued from position 57,344 (114,688 windows):
+  - verified disjoint from the 5-hour run, validation and base-v1's reconstructed positions;
+  - exact source mix 61.10/38.90 from index metadata;
+  - full corpus SHA-256 matches, and every token is in range;
+  - base-v1 exclusion is positional and reconstructed, not content-level.
+- **Budget:** at most 36,000 s wall-clock including finalization (SessionBudget), with a supervisor backstop at +120 s. Cap 3,584 updates, the largest multiple of the cadence whose p95 plan leaves at least 10% slack. Reserve 540 s, which is 1.25 × the measured final validation, save/verify and full evaluation.
+- **Evaluation:**
+  - validation, then plain-form capability scoring every 224 updates;
+  - full evaluation at 896, 1,792 and 2,688 and at the end: historical 48 + both-form scoring + greedy generations;
+  - capability guard: McNemar p < 0.01 plus a lower margin, at 2 consecutive judgements.
+- **Telemetry:** moved into LLM-Training (`llm_training.telemetry`, aliased by the integration). `pretrain_run` now records updates, gates, evaluations, checkpoints, stop and recovery state. Real tiny-run evidence exposed two defects, both fixed before freezing:
+  - CPU VRAM was logged as 0; it is now null;
+  - an all-writes-failed run reported 'unavailable'; it now reports 'degraded'.
+- **Benchmark:** v1, the 56 + 8 items, is preserved byte-identical. v2 adds 224 + 8 new items (32 per category). Measured per item: likelihood rank, length-normalized rank, margin, both option orders, P(END), and greedy and repetition-penalty generations; Wilson and McNemar statistics. Independent human review of v2 is pending.
+- **Baseline** b9e0a920 (inference only): grammar choices follow word frequency (0 order-sensitive items); arithmetic and reasoning at chance; the repetition penalty removes repetition but lowers correct statements.
+- **First frozen attempt** a5373cf3 is superseded and preserved:
+  - its paths were relative;
+  - its trial readiness exposed the btrfs st_dev identity defect, fixed in 046af65.
+- **Readiness for 6d9d8453:** 0 engineering failures (focused tests 24 + 58 pass). CONDITIONALLY READY, because free disk is 43.7 MB below the 180 GiB gate. The space was taken by the SFT pilot checkpoints and new user files. Nothing was deleted and no gate was lowered.
+- **Regression:** integration 489 passed, all components pass, audit 65 passed.
+- **Commits:** local only. No push, no PR, PR #6 untouched.

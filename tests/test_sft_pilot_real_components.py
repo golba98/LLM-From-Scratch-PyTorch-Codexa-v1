@@ -126,7 +126,7 @@ def test_real_components_train_publish_verify_and_evaluate(toy_job, tmp_path):
     # The read-only dashboard renders this run's files (it is the trainer's required viewer).
     from codexa_workspace.training_dashboard import render_text
     frame = render_text(run_dir, width=120, gpu=False, color=False)
-    assert 'toy-sft-wiring' in frame or 'COMPLETED' in frame
+    assert 'Closing this viewer never stops training' in frame and 'Traceback' not in frame
     # The supervisor's own classification of this run directory agrees.
     from codexa_workspace.training_supervisor import classify
     verdict = classify(run_dir, exit_status=dict(code=0), supervisor_reason=None, stop_signal=False)

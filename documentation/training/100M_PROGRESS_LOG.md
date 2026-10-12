@@ -830,3 +830,36 @@ On completion or failure, the supervisor will:
 - Wake Codex once for analysis.
 
 No further training is automatic. Status: `.venv/bin/python scripts/training_status.py`.
+
+## 2026-10-12 — Foundation step-1792 checkpoint added to Ubume Dev
+
+Added verified foundation step-1792 checkpoint to ubume-dev as codexa-934m-foundation-5h (SHA256 ca779a1640fa8f664356faf6db0897c9e9669b90a2e3ed35a7a23fc13144236e). Preserved existing model choices; no training started.
+
+## 2026-10-12 — Post-training generation investigation
+
+Completed post-training generation investigation against verified baseline/final checkpoints; exact historical validation and 96 generation reproductions, complete selected-target EOS/source audit, 17 focused tests passed. Seven private reports and raw evidence: `outputs/diagnostics/post-training-generation-investigation/20261012T040042Z-10a1d256`. Confirmed absent conversational supervision and response-termination failure; isolated unused masked-cache offset defect. Checkpoints preserved; no new training, optimizer updates, production edits, commits or pushes.
+
+## 2026-10-12 — Diagnostic navigation cleanup
+
+One canonical report: `outputs/diagnostics/post-training-generation-investigation/20261012T040042Z-10a1d256/REPORT.md`. Evidence, figures and archived originals organized beneath it. Preserved all 109 original files and all 72 generation excerpts; hash/link/rebuild checks and four offline organization tests passed. No model/training changes.
+
+## 2026-10-12 — Conversational SFT feasibility: NOT READY
+
+Preparation-only conversational SFT feasibility is NOT READY. Single report: `outputs/preparation/codexa-934m-conversational-feasibility/20261012T051805Z-a5c8725c/REPORT.md`. Prepared 64 authored examples, reviewed 365 source conversations, preserved baseline/source artifacts and passed 10 offline tests plus optimizer/backward-guarded validation. Full source admission, reviewed validation population, sealed gold baseline and specialized runtime remain incomplete. Zero training updates; no launch or optimizer construction.
+
+## 2026-10-12 — Masked KV-cache position defect repaired
+
+Repaired masked KV-cache position defect in LLM-Architecture model.py (full [batch, past+sequence] mask contract; cumsum positions continue from cache). Final-checkpoint masked cached max logit error 5.794949 -> 1.907e-05; 48/48 historical greedy generations unchanged on final and baseline; 73 new tests. Evidence: `outputs/diagnostics/masked-kv-cache-repair/20261012T060900Z/REPORT.md`. Completed run code_identity no longer verifies (accepted). No training, optimizer, checkpoint changes or commits.
+
+## 2026-10-12 — Masked KV-cache repair committed locally
+
+Committed masked KV-cache repair locally (LLM-Architecture bdf3683, LLM-Inference 4758dee, LLM-From-Scratch 55812c6/a763027/79a75c6/fc022b3; no push). Historical env = .venv without bootstrap (code_identity still matches); current = source-first (tools/codexa-dev). Preserved 10 never-committed hash-bound sources read-only. Claude and Codex audit enforcement verified in the real workspace (9/9 each). Report: `outputs/diagnostics/post-repair-integration/20261012T095454Z/REPORT.md`. No training or checkpoint changes.
+
+## 2026-10-12 — Phase 4 conversational SFT preparation complete
+
+Phase 4 conversational SFT preparation completed with no training.
+- Frozen data: 512 training and 32 validation records; manifest f5514dce.
+- Sealed step-zero baseline: gold END NLL 18.16; 0/16 natural endings.
+- Built and tested a non-runnable SFT job and runtime (prepare/evaluate/train-gated).
+- Verdict and conditions: `outputs/preparation/codexa-934m-sft-phase4/20261012T145429Z-643f4379/SFT_PHASE4_READINESS_REPORT.md`.
+- Zero optimizer constructions, zero updates, no launch.

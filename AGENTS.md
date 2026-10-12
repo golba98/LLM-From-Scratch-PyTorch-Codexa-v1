@@ -6,7 +6,7 @@ Use `.venv` for generative checks and `.venv-specialist` for the frozen encoder/
 
 Preserve state-dictionary keys, NPZ/native checkpoint dialects, tokenizer IDs and hashes, model lineage, RNG/optimizer restoration and memory scopes. Base/SFT operator launches require the automatically attached visible 100x22 Kitty viewer. Use bounded synthetic tests; no expensive training runs during refactors.
 
-Append dated decisions/evidence to documentation/training/SESSION_DECISIONS.md and milestones to 100M_PROGRESS_LOG.md. Run the relevant regression suites, wheel and CLI checks before PRs. Stage source changes and intentional sibling compatibility pins only. Do not force-push, merge PRs, alter repository permissions/protection or remove pending-retirement directories without satisfying the documented gates.
+Append dated decisions/evidence to documentation/training/SESSION_DECISIONS.md and milestones to documentation/training/100M_PROGRESS_LOG.md (never a repository-root copy). Run the relevant regression suites, wheel and CLI checks before PRs. Stage source changes and intentional sibling compatibility pins only. Do not force-push, merge PRs, alter repository permissions/protection or remove pending-retirement directories without satisfying the documented gates.
 
 ## Consolidated local storage — 2026-10-09
 

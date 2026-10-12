@@ -2234,3 +2234,24 @@ Report: `outputs/diagnostics/post-repair-integration/20261012T095454Z/REPORT.md`
 - Budget: the full evaluation schedule needs about 974 s, which exceeds the proposed 900 s. Choosing a 1,200 s cap or a reduced intermediate schedule is a decision for authorization.
 - The SFT runtime consumes Codex's `tools/training_environment_guard.py` read-only. It currently refuses a new development job because of uncommitted executed source.
 - The commit is blocked: the Phase 4 modules depend on Codex-owned, uncommitted `sft_feasibility.py`.
+
+## 2026-10-12 — Step 5A integration and SFT pilot readiness gate (Claude Code; no training)
+
+- Single report: `outputs/preparation/codexa-934m-sft-step5a/20261012T170336Z-3d5556ba/CODEXA_STEP5A_FINAL_READINESS.md`. Verdict is stated in section A; readiness is not authorization.
+- Uncommitted completed work in Architecture, Data, Training, Inference and the integration repository was reviewed, tested and committed in scoped commits (no push). Pins moved to the new HEADs; `historical_identity` is unchanged.
+  - 11 of the 12 hash-bound historical files are now in Git byte-identical to the job hashes.
+  - `model.py` differs only by the intended masked KV-cache repair.
+- Codex's guard now accepts a new development job.
+  - Historical verification and the source archive (231 files, 12/12 identities) still pass.
+  - The guard itself was not modified.
+- Test repairs:
+  - The guard-broken trainer tests select `development` explicitly; the real guard validates the real workspace.
+  - The supervisor "timeout" was a missing selection plus unbounded polling, now bounded and fail-fast.
+  - Codex's dirty-tree test uses an isolated Git workspace.
+- Frozen SFT job v2 `924da9f34272f3d2c80ae43f6eec0cd12b9dbdb6ec67026726961e08dff067a3`. It reuses the Phase 4 data manifest and step zero, and binds the guard report and component commits.
+  - Proposed cap 1,200 s with a 180 s reserve; intermediate evaluations are reduced (greedy-16, gold, reference), the final one is full.
+  - The data was independently re-derived: 25,513 supervised tokens per pass, isolation clean.
+  - The validation exception record is isolated.
+  - Earlier SFT models are siblings, not ancestors, of the initialization checkpoint.
+  - Step zero reconfirmed 16/16 token-identical under the committed identity.
+- GO/NO-GO: `tools/codexa-dev scripts/sft_readiness.py --experiment <job.json>`. Authorization-time commands are `scripts/sft_pilot.py approve|launch`; neither was run.

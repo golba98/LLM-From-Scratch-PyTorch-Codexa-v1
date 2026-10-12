@@ -2255,3 +2255,47 @@ Report: `outputs/diagnostics/post-repair-integration/20261012T095454Z/REPORT.md`
   - Earlier SFT models are siblings, not ancestors, of the initialization checkpoint.
   - Step zero reconfirmed 16/16 token-identical under the committed identity.
 - GO/NO-GO: `tools/codexa-dev scripts/sft_readiness.py --experiment <job.json>`. Authorization-time commands are `scripts/sft_pilot.py approve|launch`; neither was run.
+
+## 2026-10-12 — Step 5B SFT pilot executed; 10-hour SFT not recommended (Claude Code)
+
+- **Job.** Step 5A job 924da9f3 had been superseded by the Step 5B re-freeze f36f5478. The re-freeze fixed the final-save and deadline-state trainer defects (a9adc65, 6d3e522) and kept the same experiment settings. The user chose f36f5478.
+- **Preflight.** Readiness was READY FOR AUTHORIZATION, 24/24 checks (free VRAM 14,775 MiB).
+- **Launch.** The user ran `approve` and `launch` themselves (wakeup provider claude). The recorded statement is the literal placeholder `I authorize ...`.
+- **Outcome.** COMPLETED, STEP_CAP: 128 updates, 51,026 supervised tokens, 331 s.
+  - Final checkpoint 43002c4d and update-64 checkpoint 2ddf6d80, both re-hashed independently.
+  - Foundation ca779a16 unchanged.
+- **Acceptance: FAIL.**
+  - Severe repetition 5/16 (limit 4); strict accuracy 0/7.
+  - END, natural endings, premature END and reference CE PASS.
+  - Human review PENDING.
+  - All behavioural metrics flat from update 32 to 128; historical-nucleus repetition 15 to 30.
+- **Decision.**
+  - No promotion, no resume, no extension, no second run.
+  - A 10-hour General Chat v2 SFT is not recommended.
+  - Next: a bounded investigation (decoding, data, a foundation completion probe, a real blinded review) and consider pretraining. The foundation has about 773M tokens, about 0.8 tokens per parameter.
+- **Defects found.**
+  - The supervisor completion schema has null validation and generations for SFT runs.
+  - The handoff text uses the foundation-run template.
+  - There is no per-update metrics file and peak VRAM is not logged.
+- **Separate change.** The run-end agent window is now 100x22 and the dashboard stays 120x30 (bb5cd0f; PR #6).
+- **Reports.** `outputs/diagnostics/codexa-934m-sft-pilot-v1-results/20261012T211243Z/`.
+
+## 2026-10-12 — Post-SFT foundation assessment and training instrumentation repair (Claude Code; no training)
+
+- **Telemetry.** New `training_telemetry` gives append-only, deduplicated, crash- and resume-safe per-update records:
+  - loss, learning rate, pre-clip and derived post-clip gradient norm, tokens;
+  - allocated, reserved, peak and driver-free VRAM, throughput;
+  - evaluation and checkpoint timing, stop records.
+  - It is wired into `sft_pilot_trainer`. Telemetry failures are never fatal.
+- **Reporting.** New `run_reporting` distinguishes SFT and foundation jobs, reads the real SFT evaluations and the sealed baseline, separates execution from quality, names the best non-promoted candidate, and marks missing data as unavailable.
+  - `training_notifications` writes a new `supervisor/run-summary.json` and a job-aware handoff and prompt, falling back to the legacy text on error.
+  - `completion.json`, `training_supervisor` and `training_wakeup` are unchanged (hash-bound).
+- **Capability probe** (inference only, 3 checkpoints, 360 rows):
+  - foundation plain-form top-1 26/56 (p=0.0007); arithmetic, grammar and reasoning at chance;
+  - SFT changed the chat surface, not knowledge; P(END after a bare answer) ≈ 0; 0 exact answers in every configuration;
+  - a repetition penalty removes loops but halves correct statements.
+- **Data** (frozen set read-only): 30% of targets restate the prompt (UltraChat 42%); the authored constrained examples are 1% of supervised tokens, in 4 rigid templates; 2 of 7 strict cases expect bare answers to open questions.
+- **Strategy.** Continuing the 934M beats a fresh 150–350M model at 10 h and is level at 50–300 h. Throughput is measured (8,012 vs 52,851 tok/s); the loss fit is relative only.
+  - Correction to the earlier 10-hour note: steady throughput is 8,012 tok/s, not 3,024.
+  - Verdict: READY TO PREPARE NEW FOUNDATION EXPERIMENT. No job was prepared or launched.
+- **Commits** (local, not pushed): 9427fa0, fbcc5c0, eccd16a. Audit CLD-000029 to CLD-000031.

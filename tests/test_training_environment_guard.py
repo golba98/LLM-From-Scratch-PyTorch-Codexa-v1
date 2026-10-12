@@ -88,10 +88,11 @@ def test_changed_architecture_and_import_path_fail_without_importing_model(tmp_p
     shutil.copyfile(source, fake / "model.py")
     (fake / "model.py").write_bytes(source.read_bytes() + b"\n# changed architecture\n")
     monkeypatch.syspath_prepend(str(tmp_path))
+    imported_before = sys.modules.get("llm_architecture.model")
     report = gate.inspect("development")
     assert not report["valid"]
     assert any("architecture" in error for error in report["errors"])
-    assert "llm_architecture.model" not in sys.modules
+    assert sys.modules.get("llm_architecture.model") is imported_before
 
 
 def test_dirty_source_blocks_new_development_job_without_initialization(monkeypatch):

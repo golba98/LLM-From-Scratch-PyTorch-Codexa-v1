@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import runpy
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -118,3 +119,11 @@ def test_training_help_explains_environment_selection():
     assert direct.returncode == console.returncode == 0
     assert "--environment development" in direct.stderr
     assert "--environment development" in console.stderr
+
+
+def test_supervisor_child_receives_verified_selection(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEXA_TRAINING_ENVIRONMENT", "historical")
+    script = runpy.run_path(str(ROOT / "scripts/training_supervisor.py"), run_name="codexa_test_adapter")
+    launch = script["write_launch"](tmp_path / "example", provider="codex")
+    assert launch["environment"]["CODEXA_TRAINING_ENVIRONMENT"] == "historical"
+    assert "--resume" not in launch["command"]

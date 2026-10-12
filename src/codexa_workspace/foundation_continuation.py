@@ -484,9 +484,12 @@ def verify_data(spec: dict) -> dict:
     historical = np.load(PREPARED / 'historical_window_ids.npy', allow_pickle=False)
     predecessor = np.load(predecessor_spec()['data']['train_window_order'], allow_pickle=False)
     eligible = np.load(PREPARED / 'train_window_ids.npy', mmap_mode='r', allow_pickle=False)
+    # st_dev is not a stable identity on btrfs (anonymous subvolume device ids change across mounts:
+    # 54 at selection, 50 after a remount, with identical inode, size, timestamps and full SHA-256).
+    # Identity is inode + size + mtime + ctime here, and the full payload checksum in the evidence.
     checks = dict(
-        corpus_identity=(stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
-        == (identity['device'], identity['inode'], identity['bytes'], identity['mtime_ns']),
+        corpus_identity=(stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+        == (identity['inode'], identity['bytes'], identity['mtime_ns'], identity['ctime_ns']),
         order_sha=file_sha256(data['train_window_order']) == data['train_window_order_sha256'],
         order_length=len(order) == spec['training']['max_steps'] * spec['training']['gradient_accumulation_steps'],
         order_unique=len(np.unique(order)) == len(order),
@@ -496,7 +499,8 @@ def verify_data(spec: dict) -> dict:
         disjoint_from_base_v1_reconstructed=not np.intersect1d(order, historical).size,
         validation_sha=file_sha256(data['validation_window_ids']) == data['validation_window_ids_sha256'],
         sources_sha=file_sha256(data['validation_sources']) == data['validation_sources_sha256'])
-    return dict(passed=all(checks.values()), checks=checks)
+    return dict(passed=all(checks.values()), checks=checks,
+                device=dict(current=stat.st_dev, at_selection=identity['device'], informational=True))
 
 
 def evaluate_readiness(job_path: Path, *, environment=None, resources: Callable[[], dict] | None = None,

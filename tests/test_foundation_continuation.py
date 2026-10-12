@@ -239,3 +239,30 @@ def test_verify_run_refuses_changed_code_or_missing_grant(tmp_path, monkeypatch)
     monkeypatch.setattr(job, 'code_identity', lambda root=job.ROOT: {})
     with pytest.raises(job.LaunchRefused, match='approval'):
         job.verify_run(tmp_path)
+
+
+def test_corpus_identity_ignores_the_unstable_btrfs_device_number(tmp_path, monkeypatch):
+    import os
+    corpus = tmp_path / 'train.bin'
+    corpus.write_bytes(b'\0' * 64)
+    stat = os.stat(corpus)
+    identity = dict(device=stat.st_dev + 4, inode=stat.st_ino, bytes=stat.st_size, mtime_ns=stat.st_mtime_ns,
+                    ctime_ns=stat.st_ctime_ns)
+    order = tmp_path / 'order.npy'
+    np.save(order, np.array([5, 6], dtype='<u4'))
+    for name, values in (('validation.npy', [1]), ('historical_window_ids.npy', [2]), ('train_window_ids.npy', [5, 6, 7]),
+                         ('predecessor.npy', [7])):
+        np.save(tmp_path / name, np.array(values, dtype='<u4'))
+    (tmp_path / 'sources.json').write_text('{}')
+    monkeypatch.setattr(job, 'PREPARED', tmp_path)
+    monkeypatch.setattr(job, 'predecessor_spec', lambda: dict(data=dict(train_window_order=str(tmp_path / 'predecessor.npy'))))
+    spec = dict(training=dict(max_steps=1, gradient_accumulation_steps=2),
+                data=dict(corpus_path=str(corpus), corpus_input_identity=identity, train_window_order=str(order),
+                          train_window_order_sha256=job.file_sha256(order), validation_window_ids=str(tmp_path / 'validation.npy'),
+                          validation_window_ids_sha256=job.file_sha256(tmp_path / 'validation.npy'),
+                          validation_sources=str(tmp_path / 'sources.json'),
+                          validation_sources_sha256=job.file_sha256(tmp_path / 'sources.json')))
+    result = job.verify_data(spec)
+    assert result['passed'] and result['device']['informational'] is True
+    corpus.write_bytes(b'\1' * 64)                                   # content and timestamps change
+    assert not job.verify_data(spec)['checks']['corpus_identity']

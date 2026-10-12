@@ -81,6 +81,8 @@ def main() -> int:
     parser.add_argument('--run-tests', action='store_true')
     parser.add_argument('--write', type=Path, help='readiness: also write the full record (new file)')
     args = parser.parse_args()
+    if args.directory is not None:
+        args.directory = args.directory.resolve()        # every frozen path must be absolute
     from codexa_workspace import foundation_continuation as job
     stamp = datetime.now(timezone.utc).isoformat()
     if args.command == 'baseline':

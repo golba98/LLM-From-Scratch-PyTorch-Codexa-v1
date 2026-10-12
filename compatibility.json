@@ -26,7 +26,7 @@
       "distribution": "llm-training",
       "version": "0.1.0",
       "path": "../LLM-Training",
-      "commit": "4622b5089d3c2e5ce87cc6d2aa008c7f1addc32e",
+      "commit": "933358c6ae4cb4f891485cac3182616e8b8e8903",
       "state": "pinned-sibling"
     },
     "LLM-Inference": {

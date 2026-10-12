@@ -123,7 +123,7 @@ def test_boundaries_are_fsynced_and_updates_batched(tmp_path, monkeypatch):
     writer.stop(state='COMPLETED', reason='STEP_CAP', step=32)
     assert len(calls) == 6
     writer.close()
-    evaluation = next(r for r in lines(tmp_path / 't.jsonl') if r['kind'] == 'evaluation')
+    evaluation = next(r for r in lines(tmp_path / 't.jsonl') if r['kind'].startswith('evaluation'))
     assert 'rows' not in evaluation['metrics'] and evaluation['metrics']['gold'] == {'x': 1}
 
 
@@ -160,7 +160,7 @@ def test_fake_sft_run_writes_complete_telemetry(tmp_path):
     assert report['state'] == 'COMPLETED' and report['telemetry_errors'] == []
     effective = telemetry.read_telemetry(tmp_path / 'run/metrics/telemetry.jsonl')
     kinds = [r['kind'] for r in effective['records']]
-    assert kinds.count('update') == 128 and kinds.count('evaluation') == 3
+    assert kinds.count('update') == 128 and sum(k.startswith('evaluation') for k in kinds) == 3
     assert [r['step'] for r in effective['records'] if r['kind'].startswith('checkpoint:')] == [64, 128]
     assert effective['records'][-1]['kind'] == 'stop' and effective['records'][-1]['reason'] == 'STEP_CAP'
     assert all(r['vram_driver_free_bytes'] == 4 * 1024**3 for r in effective['records'] if r['kind'] == 'update')

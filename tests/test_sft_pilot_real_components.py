@@ -128,7 +128,7 @@ def test_real_components_train_publish_verify_and_evaluate(toy_job, tmp_path):
     assert [r['step'] for r in updates] == list(range(1, 9)) and report['telemetry_errors'] == []
     assert all(r['learning_rate'] is not None and r['supervised_tokens'] and r['micro_step'] for r in updates)
     assert all(r['gradient_norm_post_clip'] <= r['gradient_norm_pre_clip'] + 1e-9 for r in updates)
-    assert [r['step'] for r in effective['records'] if r['kind'] == 'evaluation'] == [2, 4, 8]
+    assert [r['step'] for r in effective['records'] if r['kind'].startswith('evaluation')] == [2, 4, 8]
     assert [r['step'] for r in effective['records'] if r['kind'].startswith('checkpoint:')] == [4, 8]
     assert effective['records'][-1]['kind'] == 'stop' and effective['records'][-1]['reason'] == 'STEP_CAP'
     assert data.read(run_dir / 'metrics/heartbeat.json')['terminal_state'] in TERMINAL

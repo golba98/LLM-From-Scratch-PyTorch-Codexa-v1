@@ -5,7 +5,7 @@
       "distribution": "llm-architecture",
       "version": "0.1.0",
       "path": "../LLM-Architecture",
-      "commit": "c33462047ad75b67d39ffbaf4a95e064fbbe5be4",
+      "commit": "bdf368310df536036917b1f39d4aefa810d4bf33",
       "state": "pinned-sibling"
     },
     "LLM-Tokenizer": {
@@ -33,7 +33,7 @@
       "distribution": "llm-inference",
       "version": "0.1.0",
       "path": "../LLM-Inference",
-      "commit": "48a9f4b7fb5b4eef20fe9ce61f2089396b1fc244",
+      "commit": "4758dee4d71ee4d5ee792aff87aad0db3c35049e",
       "state": "pinned-sibling"
     },
     "LLM-Memory": {
@@ -53,7 +53,18 @@
   },
   "environments": {
     "generative": ".venv/bin/python",
-    "specialist": ".venv-specialist/bin/python"
+    "specialist": ".venv-specialist/bin/python",
+    "current_development": "tools/codexa-dev"
+  },
+  "historical_identity": {
+    "run": "codexa-934m-foundation-5h-v1",
+    "environment": ".venv/bin/python without workspace_bootstrap (installed wheels; do not reinstall)",
+    "component_commits": {
+      "LLM-Architecture": "c33462047ad75b67d39ffbaf4a95e064fbbe5be4",
+      "LLM-Inference": "48a9f4b7fb5b4eef20fe9ce61f2089396b1fc244"
+    },
+    "preserved_source": "outputs/preservation/historical-source/codexa-934m-foundation-5h-v1/MANIFEST.json",
+    "documentation": "documentation/workspace/ENVIRONMENTS.md"
   },
   "memory_transport": "JSON lines over separate subprocess",
   "assets": "artifact-catalog/catalog.json",

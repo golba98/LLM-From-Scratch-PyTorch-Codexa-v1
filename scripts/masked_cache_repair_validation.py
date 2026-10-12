@@ -26,8 +26,14 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-import workspace_bootstrap  # noqa: E402,F401  (source component paths first)
+# --historical-context keeps the installed .venv wheels (the environment that
+# produced codexa-934m-foundation-5h-v1); otherwise source components load first.
+HISTORICAL_CONTEXT = "--historical-context" in sys.argv
+if HISTORICAL_CONTEXT:
+    sys.path.insert(0, str(ROOT / "src"))
+else:
+    sys.path.insert(0, str(ROOT))
+    import workspace_bootstrap  # noqa: E402,F401  (source component paths first)
 
 RUN = ROOT / "outputs/training/codexa-934m-foundation-5h-v1"
 DIAGNOSTIC = ROOT / "outputs/diagnostics/post-training-generation-investigation/20261012T040042Z-10a1d256"
@@ -189,7 +195,8 @@ def run_phase(directory: Path, phase: str) -> None:
         return torch.autocast("cuda", dtype=torch.bfloat16) if device == "cuda" else nullcontext()
 
     output = directory / phase
-    results = dict(phase=phase, model_py=str(Path(model_module.__file__).resolve()),
+    results = dict(phase=phase, historical_context=HISTORICAL_CONTEXT,
+                   model_py=str(Path(model_module.__file__).resolve()),
                    model_py_sha256=file_sha256(model_module.__file__), torch_version=torch.__version__,
                    device=device, checkpoints={})
     checkpoints = (("final", RUN / "checkpoints/slot-0/checkpoint.pt", FINAL_SHA256),
@@ -285,6 +292,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", choices=("before", "after", "compare"), required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--historical-context", action="store_true",
+                        help="use the installed .venv wheels instead of source components")
     args = parser.parse_args()
     directory = args.out.resolve()
     if not directory.is_relative_to(ALLOWED.resolve()) or directory == ALLOWED.resolve():

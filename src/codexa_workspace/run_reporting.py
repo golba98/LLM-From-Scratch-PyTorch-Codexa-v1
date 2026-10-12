@@ -184,7 +184,23 @@ def foundation_quality(run_dir: Path, completion: dict) -> dict:
         outcome = 'VALIDATION_IMPROVED' if final < baseline else 'VALIDATION_NOT_IMPROVED'
     from codexa_workspace.training_supervisor import recovery_role
     best_role = recovery_role(run_dir, 'best', hash_payload=False)
+    counters = (_read(Path(run_dir) / 'metrics/report.json') or {}).get('counters') or {}
+
+    def capability(entry: dict) -> dict:
+        comparison = (entry.get('comparison') or {})
+        plain = comparison.get('plain', comparison) if isinstance(comparison, dict) else {}
+        overall = plain.get('overall') or {}
+        return dict(step=entry.get('optimizer_step'), label=entry.get('label', 'periodic'),
+                    top1=_value(overall.get('top1')), baseline_top1=_value(overall.get('baseline_top1')),
+                    n=_value(overall.get('n')), gained=_value(overall.get('gained')), lost=_value(overall.get('lost')),
+                    p_two_sided=_value(overall.get('p_two_sided')),
+                    mean_margin_change=_value(overall.get('mean_margin_change')),
+                    degraded=_value(entry.get('degraded')),
+                    skipped=entry.get('skipped') or entry.get('error'))
+    full = [capability(g) for g in counters.get('generations') or [] if g.get('label') != 'baseline']
+    periodic = [capability(g) for g in counters.get('periodic') or []]
     return dict(outcome=outcome, validation_baseline=_value(baseline), validation_best=_value(best),
+                capability_full=full or UNAVAILABLE, capability_periodic=periodic or UNAVAILABLE,
                 validation_final=_value(final), validation_final_step=_value(validation.get('final_step')),
                 baseline_sources=validation.get('baseline_sources') or UNAVAILABLE,
                 final_sources=validation.get('final_sources') or UNAVAILABLE,
@@ -304,11 +320,28 @@ def handoff_text(summary: dict, completion: dict | None = None) -> str:
                   f"final {_fmt(q.get('validation_final'))} at step {q.get('validation_final_step')}"]
         candidate = q.get('best_candidate')
         lines.append(f"- Best checkpoint role: {UNAVAILABLE if not isinstance(candidate, dict) else candidate.get('path')}")
+        sources = q.get('final_sources') if isinstance(q.get('final_sources'), dict) else {}
+        base_sources = q.get('baseline_sources') if isinstance(q.get('baseline_sources'), dict) else {}
+        for name in sorted(set(sources) | set(base_sources)):
+            lines.append(f"- {name} CE: baseline {_fmt(base_sources.get(name))} -> final {_fmt(sources.get(name))}")
+        for title, entries in (('Full capability evaluations (plain form, paired vs sealed baseline)', q.get('capability_full')),
+                               ('Periodic capability scoring (plain form)', q.get('capability_periodic'))):
+            lines += ['', f'### {title}']
+            if not isinstance(entries, list):
+                lines.append(f'- {UNAVAILABLE}')
+                continue
+            lines += ['| Step | Label | Top-1 | Baseline top-1 | Gained | Lost | McNemar p | Mean margin change | Degraded |',
+                      '|---|---|---|---|---|---|---|---|---|']
+            lines += [f"| {e['step']} | {e['label']} | {e['top1']}/{e['n']} | {e['baseline_top1']} | {e['gained']} | {e['lost']} | "
+                      f"{_fmt(e['p_two_sided'])} | {_fmt(e['mean_margin_change'])} | {e['degraded']}"
+                      + (f" ({e['skipped']})" if e.get('skipped') else '') + ' |' for e in entries]
+        lines.append('- Lower CE without capability gains must be reported as such; repetition changes alone are not capability.')
     if q.get('note'):
         lines.append(f"- Note: {q['note']}")
     lines += ['', '## Telemetry']
     if t.get('available'):
-        lines += [f"- Source: `{t['source']}`; updates {t.get('updates')}; loss {_fmt(t.get('first_loss'))} → {_fmt(t.get('last_loss'))}",
+        lines += [f"- Status: **{t.get('status', UNAVAILABLE)}**" + (f"; failures: {t.get('telemetry_failures')}" if t.get('telemetry_failures') else ''),
+                  f"- Source: `{t['source']}`; updates {t.get('updates')}; loss {_fmt(t.get('first_loss'))} → {_fmt(t.get('last_loss'))}",
                   f"- Peak reserved VRAM: {_fmt(t.get('peak_reserved_vram_bytes'))} bytes; "
                   f"max pre-clip gradient norm {_fmt(t.get('max_gradient_norm_pre_clip'))}; "
                   f"clipped updates {t.get('clipped_updates', UNAVAILABLE)}"]

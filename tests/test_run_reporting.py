@@ -154,3 +154,22 @@ def test_reporting_failure_falls_back_to_the_legacy_handoff(tmp_path, monkeypatc
     monkeypatch.setattr(reporting, 'build_summary', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('broken')))
     notifications.deliver(run, tmp_path, desktop_backend=Desktop(tmp_path / 'd.jsonl'), ai_backend=Agent(tmp_path / 'a.jsonl'))
     assert (run / 'supervisor/ai-handoff.md').exists() and not (run / 'supervisor/run-summary.json').exists()
+
+
+def test_foundation_handoff_reports_capability_against_the_sealed_baseline(tmp_path):
+    run = foundation_run(tmp_path)
+    (run / 'metrics').mkdir()
+    entry = lambda step, label, lost: dict(optimizer_step=step, label=label, degraded=False,
+                                           comparison=dict(plain=dict(overall=dict(n=266, top1=120 - lost, baseline_top1=120,
+                                                                                   gained=4, lost=lost, p_two_sided=0.5,
+                                                                                   mean_margin_change=0.12))))
+    (run / 'metrics/report.json').write_text(json.dumps(dict(counters=dict(
+        generations=[dict(optimizer_step=0, label='baseline', skipped='sealed'), entry(896, 'mid', 2), entry(3360, 'final', 1)],
+        periodic=[dict(optimizer_step=224, degraded=False, comparison=dict(overall=dict(n=266, top1=121, baseline_top1=120,
+                                                                                         gained=3, lost=2, p_two_sided=1.0,
+                                                                                         mean_margin_change=0.01)))]))))
+    summary = reporting.build_summary(run)
+    assert [e['step'] for e in summary['quality']['capability_full']] == [896, 3360]
+    text = reporting.handoff_text(summary)
+    assert '| 896 | mid | 118/266 | 120 | 4 | 2 |' in text and '| 224 | periodic | 121/266 |' in text
+    assert 'Lower CE without capability gains' in text and 'five-hour' not in text

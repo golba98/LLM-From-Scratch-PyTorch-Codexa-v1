@@ -518,15 +518,19 @@ class StopPolicy:
 
 
 def terminal_state(stop_reason: str | None) -> str:
-    if stop_reason in (None, 'STEP_CAP'):
+    """Always one of the OS supervisor's terminal states (COMPLETED, EARLY_STOPPED, FAILED, INTERRUPTED)."""
+    if stop_reason in (None, 'STEP_CAP', 'TRAINING_DEADLINE'):
         return 'COMPLETED'
-    if stop_reason == 'TRAINING_DEADLINE':
-        return 'COMPLETED_INCONCLUSIVE_DEADLINE'
     if stop_reason in ('NONFINITE', 'CUDA_OOM', 'FINAL_SAVE_RESERVE_EXHAUSTED', 'CHECKPOINT_FAILURE'):
         return 'FAILED'
     if stop_reason.startswith('INTERRUPTED'):
         return 'INTERRUPTED'
     return 'EARLY_STOPPED'
+
+
+def outcome(stop_reason: str | None) -> str:
+    """Experiment-level reading of a completed run: a deadline stop before the update cap is inconclusive."""
+    return 'INCONCLUSIVE_DEADLINE' if stop_reason == 'TRAINING_DEADLINE' else (stop_reason or 'STEP_CAP')
 
 
 # ---------------------------------------------------------------- authorization and train mode

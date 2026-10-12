@@ -197,7 +197,8 @@ def test_exception_classification_and_terminal_states():
     assert rt.StopPolicy.classify_exception(torch.cuda.OutOfMemoryError('x')) == 'CUDA_OOM'
     assert rt.StopPolicy.classify_exception(FloatingPointError()) == 'NONFINITE'
     assert rt.terminal_state(None) == 'COMPLETED' and rt.terminal_state('STEP_CAP') == 'COMPLETED'
-    assert rt.terminal_state('TRAINING_DEADLINE') == 'COMPLETED_INCONCLUSIVE_DEADLINE'
+    assert rt.terminal_state('TRAINING_DEADLINE') == 'COMPLETED'
+    assert rt.outcome('TRAINING_DEADLINE') == 'INCONCLUSIVE_DEADLINE' and rt.outcome(None) == 'STEP_CAP'
     assert rt.terminal_state('CUDA_OOM') == 'FAILED' and rt.terminal_state('MEMORY_HEADROOM_GATE') == 'EARLY_STOPPED'
 
 
@@ -347,3 +348,14 @@ def test_real_guard_is_consulted_in_process():
     guard = rt.training_guard().inspect('development', 'new')
     assert resolved['context'] == ('current' if guard['valid'] else 'invalid')
     assert resolved['errors'] == guard['errors']
+
+
+def test_every_trainer_terminal_state_is_known_to_the_supervisor():
+    """The hash-bound supervisor classifies only its own TERMINAL states; anything else becomes a failure."""
+    from codexa_workspace.training_supervisor import TERMINAL
+    reasons = [None, 'STEP_CAP', 'TRAINING_DEADLINE', 'NONFINITE', 'CUDA_OOM', 'FINAL_SAVE_RESERVE_EXHAUSTED',
+               'CHECKPOINT_FAILURE', 'INTERRUPTED', 'MEMORY_HEADROOM_GATE', 'DEGENERATION_DETERIORATION',
+               'REFERENCE_CE_RETENTION', 'RuntimeError']
+    assert {rt.terminal_state(r) for r in reasons} <= set(TERMINAL)
+    # The exception path writes FAILED or INTERRUPTED only.
+    assert {'FAILED', 'INTERRUPTED'} <= set(TERMINAL)

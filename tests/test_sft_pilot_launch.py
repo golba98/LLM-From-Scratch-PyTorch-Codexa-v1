@@ -129,7 +129,7 @@ def test_authorized_path_is_connected_and_optimizer_comes_last(world, monkeypatc
             datasets=lambda spec: order.append('datasets') or ('t', 'v'),
             model=lambda spec: order.append('model') or 'm',
             optimizer=lambda model, spec: order.append('optimizer') or 'o',
-            train_loop=lambda *a: dict(optimizer_step=0),
+            train_loop=lambda *a: a[-1].update(state=dict(optimizer_step=0)) or dict(optimizer_step=0),
             evaluate=lambda *a: pytest.fail('no evaluation in this structural check'),
             store=lambda run_dir, spec: type('S', (), dict(save=lambda *a, **k: dict(), verify=lambda *a: {}))(),
             free_vram=lambda: None, write=lambda path, value: None)

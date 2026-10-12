@@ -18,7 +18,7 @@ from pathlib import Path
 import time
 from typing import Callable
 
-from codexa_workspace.sft_pilot_runtime import StopPolicy, terminal_state
+from codexa_workspace.sft_pilot_runtime import StopPolicy, outcome, terminal_state
 
 
 @dataclass
@@ -116,12 +116,14 @@ def run_sft_pilot(job: dict, run_dir: Path, *, approval: dict, environment: dict
         if budget.remaining <= spec['checkpoint']['minimum_save_seconds']:
             stop_reason = stop_reason or 'FINAL_SAVE_RESERVE_EXHAUSTED'
         else:
-            record = store.save(model, optimizer, state, final=True)
+            # Save the live training state object (as at update 64); ``state`` is its JSON summary.
+            final_state = state_holder['state']
+            record = store.save(model, optimizer, final_state, final=True)
             report['checkpoints'].append(record)
-            report['final_checkpoint'] = store.verify(record, state)
+            report['final_checkpoint'] = store.verify(record, final_state)
             report['final_checkpoint_verified'] = True
         report.update(state=terminal_state(stop_reason), stop_reason=stop_reason or 'STEP_CAP',
-                      training_state=state)
+                      outcome=outcome(stop_reason), training_state=state)
     except BaseException as error:
         reason = StopPolicy.classify_exception(error)
         report.update(state='INTERRUPTED' if reason == 'INTERRUPTED' else 'FAILED', stop_reason=reason,
@@ -142,7 +144,8 @@ def run_sft_pilot(job: dict, run_dir: Path, *, approval: dict, environment: dict
 
 # ---------------------------------------------------------------- real components (authorized runs only)
 
-def default_components() -> Components:  # pragma: no cover - exercised only by an authorized launch
+def default_components(device: str = 'cuda') -> Components:
+    """The real components. Production uses CUDA; the wiring smoke test runs them on CPU with a toy model."""
     import torch
     from llm_architecture.checkpointing import read_native_checkpoint
     from llm_architecture.model import LanguageModel, ModelConfig, count_parameters
@@ -178,7 +181,7 @@ def default_components() -> Components:  # pragma: no cover - exercised only by 
         if count_parameters(network) != spec['expected_parameters']:
             raise ValueError('Architecture drift.')
         network.set_gradient_checkpointing(True)
-        return network.to('cuda')
+        return network.to(device)
 
     def optimizer(network, spec):
         o = spec['optimization']
@@ -190,7 +193,7 @@ def default_components() -> Components:  # pragma: no cover - exercised only by 
         manifest = json.loads(Path(spec['data']['manifest']).read_text())
         positions = [i for order in manifest['orders'] for i in order['indices']]
         loader = torch.utils.data.DataLoader(train, batch_size=1, sampler=FixedOrderSampler(positions),
-                                             collate_fn=collate_chat, pin_memory=True)
+                                             collate_fn=collate_chat, pin_memory=device == 'cuda')
         t = spec['training']
         state = TrainingState()
         holder['state'] = state
@@ -199,8 +202,8 @@ def default_components() -> Components:  # pragma: no cover - exercised only by 
             holder['state'] = current
             on_update(current.optimizer_step, metrics.training_loss, metrics.gradient_norm)
 
-        final, _ = train_model(network, loader, optim, device=torch.device('cuda'),
-                               precision=resolve_precision(t['precision'], torch.device('cuda')),
+        final, _ = train_model(network, loader, optim, device=torch.device(device),
+                               precision=resolve_precision(t['precision'], torch.device(device)),
                                max_steps=t['max_steps'], gradient_accumulation_steps=t['gradient_accumulation_steps'],
                                gradient_clip=t['gradient_clip'], warmup_steps=t['warmup_steps'],
                                peak_learning_rate=t['learning_rate'],
@@ -220,12 +223,12 @@ def default_components() -> Components:  # pragma: no cover - exercised only by 
         if not full:
             decodes = {'greedy': decodes['greedy']}
         rows = evaluation.generate_suite(network, tokenizer, evaluation.conversational_cases(),
-                                         suite='conversation', decodes=decodes, device='cuda')
+                                         suite='conversation', decodes=decodes, device=device)
         if full:
             rows += evaluation.generate_suite(network, tokenizer, evaluation.historical_cases(),
-                                              suite='historical', decodes=decodes, device='cuda')
-        gold, _ = evaluation.gold_validation(network, validation, device='cuda')
-        reference = evaluation.reference_validation(network, spec['data']['reference'], device='cuda')
+                                              suite='historical', decodes=decodes, device=device)
+        gold, _ = evaluation.gold_validation(network, validation, device=device)
+        reference = evaluation.reference_validation(network, spec['data']['reference'], device=device)
         finite = all(bool(torch.isfinite(p).all()) for p in network.parameters())
         network.train()
         return dict(step=step, schedule='full' if full else 'reduced', generation=evaluation.summarize_generations(rows),
@@ -258,7 +261,7 @@ def default_components() -> Components:  # pragma: no cover - exercised only by 
                                 step=record['optimizer_step'], config_hash=self.config_hash)
 
     def free_vram():
-        return torch.cuda.mem_get_info()[0] if torch.cuda.is_available() else None
+        return torch.cuda.mem_get_info()[0] if device == 'cuda' and torch.cuda.is_available() else None
 
     def heartbeat(path):
         return Heartbeat(path).start()
@@ -282,7 +285,7 @@ def main(arguments: list[str] | None = None) -> int:  # pragma: no cover - super
     job = json.loads((args.run_dir / 'config/job.json').read_text())
     report = runtime.train_authorized(args.run_dir, job, environment=runtime.TrainingGuardProvider('new'),
                                       measured=runtime.measure_resources(args.run_dir))
-    return 0 if report['state'] in ('COMPLETED', 'COMPLETED_INCONCLUSIVE_DEADLINE', 'EARLY_STOPPED') else 1
+    return 0 if report['state'] in ('COMPLETED', 'EARLY_STOPPED') else 1
 
 
 if __name__ == '__main__':  # pragma: no cover

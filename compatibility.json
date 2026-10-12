@@ -56,6 +56,13 @@
     "specialist": ".venv-specialist/bin/python",
     "current_development": "tools/codexa-dev"
   },
+  "tooling": {
+    "workspace-infrastructure": {
+      "path": "../workspace-infrastructure",
+      "commit": "ed64917",
+      "kind": "local-sibling-git-repository"
+    }
+  },
   "historical_identity": {
     "run": "codexa-934m-foundation-5h-v1",
     "environment": ".venv/bin/python without workspace_bootstrap (installed wheels; do not reinstall)",

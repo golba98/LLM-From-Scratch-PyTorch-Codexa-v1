@@ -68,3 +68,11 @@ def test_independent_dataset_rederivation():
     assert result['train']['supervised_tokens'] == data.read(MANIFEST)['token_accounting']['train']['total']['supervised_tokens']
     assert result['train_two_passes']['presentations'] == 1024
     assert result['token_ids'] == dict(pad=0, bos=1, eos=2, system=4, user=5, assistant=6, end=7)
+
+
+def test_report_without_evidence_is_not_ready(tmp_path):
+    from codexa_workspace.sft_step5a_report import TITLE, READY_LINE, write_report
+    result = write_report(tmp_path)
+    text = (tmp_path / TITLE).read_text()
+    assert result['verdict'].startswith('NOT READY') and READY_LINE not in text
+    assert '## L. Authorization handoff' in text

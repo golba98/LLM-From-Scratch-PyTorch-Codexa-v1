@@ -232,18 +232,21 @@ def write_report(directory: Path) -> dict:
     # L
     lines += ['## L. Authorization handoff', '']
     if job:
-        lines += [f"- Frozen experiment: `{directory / 'config/job.json'}`", f"- Job SHA-256: `{job['job_sha256']}`",
+        root = Path(__file__).resolve().parents[2]
+        job_path = directory / 'config/job.json'
+        experiment = job_path.relative_to(root) if job_path.is_relative_to(root) else job_path
+        lines += [f"- Frozen experiment: `{job_path}`", f"- Job SHA-256: `{job['job_sha256']}`",
                   f"- Spec SHA-256: `{job['spec_sha256']}`; format `{job['format']}`; run `{job['run_id']}`.",
                   f"- Engineering gates all pass: {readiness.get('engineering_failures') == 0}.",
                   '- Requirements at launch time: the readiness command must return READY FOR AUTHORIZATION '
                   '(free VRAM >= 13,928 MiB, RAM >= 16 GiB, disk >= 180 GiB with the 100 GiB reserve), and the '
                   'source tree must still equal the frozen commits.', '',
                   'Smallest user actions for Step 5B (not performed here):', '',
-                  '```bash', 'cd LLM-From-Scratch',
-                  f"tools/codexa-dev scripts/sft_readiness.py --experiment {directory / 'config/job.json'}",
-                  f"tools/codexa-dev scripts/sft_pilot.py approve --experiment {directory / 'config/job.json'} "
+                  '```bash', 'cd LLM-From-Scratch', f'EXPERIMENT="{experiment}"',
+                  'tools/codexa-dev scripts/sft_readiness.py --experiment "$EXPERIMENT"   # must print READY FOR AUTHORIZATION',
+                  f'tools/codexa-dev scripts/sft_pilot.py approve --experiment "$EXPERIMENT" '
                   f"--job-sha256 {job['job_sha256']} --statement '<your explicit authorization>'",
-                  f"tools/codexa-dev scripts/sft_pilot.py launch --experiment {directory / 'config/job.json'} --provider codex",
+                  'tools/codexa-dev scripts/sft_pilot.py launch --experiment "$EXPERIMENT" --provider <codex|claude>',
                   '```', '', 'Readiness is not authorization. Step 5B must be explicitly authorized separately.']
     text = '\n'.join(lines).rstrip() + '\n'
     (directory / TITLE).write_text(text)

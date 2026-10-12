@@ -120,7 +120,8 @@ def test_foundation_summary_keeps_validation_view(tmp_path):
 def test_telemetry_is_reported_when_present(tmp_path):
     run = sft_run(tmp_path)
     writer = telemetry.TelemetryWriter(run / 'metrics/telemetry.jsonl', run_id='codexa-sft-test', clip=1.0)
-    writer.update(dict(optimizer_step=1, training_loss=2.5, gradient_norm=5.0, peak_reserved_vram_bytes=12))
+    writer.update(dict(optimizer_step=1, training_loss=2.5, gradient_norm=5.0, peak_reserved_vram_bytes=12,
+                       device='cuda'))   # VRAM counts as measured only when the device is known to be CUDA
     writer.close()
     t = reporting.build_summary(run)['telemetry']
     assert t['available'] and t['clipped_updates'] == 1 and t['peak_reserved_vram_bytes'] == 12

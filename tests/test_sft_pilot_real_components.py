@@ -83,7 +83,7 @@ def toy_job(tmp_path, monkeypatch):
                                        validation_window_ids=str(tmp_path / 'windows.npy'),
                                        validation_sources=str(tmp_path / 'sources.json'),
                                        source_loss_weights=dict(wikipedia=.5, fineweb_edu=.5)))
-    spec['training'].update(max_steps=8, gradient_accumulation_steps=2, precision='fp32', checkpoint_interval=4,
+    spec['training'].update(max_steps=8, warmup_steps=2, gradient_accumulation_steps=2, precision='fp32', checkpoint_interval=4,
                             evaluation_interval=2)
     spec['optimization'].update(optimizer='adamw')
     spec['evaluation'].update(updates=[0, 2, 4, 8], reduced_updates=[2, 4], step_zero_path=str(step_zero))
@@ -123,6 +123,10 @@ def test_real_components_train_publish_verify_and_evaluate(toy_job, tmp_path):
         assert (run_dir / f'metrics/{name}.json').exists(), name
     assert data.read(run_dir / 'metrics/heartbeat.json')['terminal_state'] in TERMINAL
     assert {'deadline_utc', 'remaining_seconds'} <= set(data.read(run_dir / 'metrics/budget.json'))
+    # The read-only dashboard renders this run's files (it is the trainer's required viewer).
+    from codexa_workspace.training_dashboard import render_text
+    frame = render_text(run_dir, width=120, gpu=False, color=False)
+    assert 'toy-sft-wiring' in frame or 'COMPLETED' in frame
     # The supervisor's own classification of this run directory agrees.
     from codexa_workspace.training_supervisor import classify
     verdict = classify(run_dir, exit_status=dict(code=0), supervisor_reason=None, stop_signal=False)
@@ -130,13 +134,23 @@ def test_real_components_train_publish_verify_and_evaluate(toy_job, tmp_path):
 
 
 def test_deadline_stop_completes_with_a_verified_final_checkpoint(toy_job, tmp_path):
-    toy_job['spec']['budget'].update(total_seconds=62, finalization_reserve_seconds=60)
+    from dataclasses import replace
+    import time
+    from llm_training.session import SessionBudget
+    parts = trainer.default_components(device='cpu')
+    # A budget whose training deadline is already reached: train_model returns before any update.
+    parts.budget = lambda seconds, reserve: replace(SessionBudget.start(seconds, reserve),
+                                                    deadline_monotonic=time.monotonic() + reserve)
     run_dir = tmp_path / 'deadline'
-    report = trainer.run_sft_pilot(toy_job, run_dir, approval={}, environment={},
-                                   components=trainer.default_components(device='cpu'))
+    report = trainer.run_sft_pilot(toy_job, run_dir, approval={}, environment={}, components=parts)
     assert report['state'] == 'COMPLETED' and report['stop_reason'] == 'TRAINING_DEADLINE'
     assert report['outcome'] == 'INCONCLUSIVE_DEADLINE' and report['final_checkpoint_verified']
     assert report['training_state']['optimizer_step'] < 8
     from codexa_workspace.training_supervisor import classify
     verdict = classify(run_dir, exit_status=dict(code=0), supervisor_reason=None, stop_signal=False)
     assert (verdict['terminal_state'], verdict['reason']) == ('COMPLETED', 'TRAINING_DEADLINE')
+
+
+def test_production_components_require_the_visible_dashboard():
+    parts = trainer.default_components(device='cuda')
+    assert parts.viewer is not None and trainer.default_components(device='cpu').viewer is None

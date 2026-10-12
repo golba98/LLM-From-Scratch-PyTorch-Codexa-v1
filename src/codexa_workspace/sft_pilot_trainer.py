@@ -35,6 +35,7 @@ class Components:
     store: Callable              # (run_dir, spec) -> object with save(model, optimizer, state, *, final) -> record, verify(record, state) -> dict
     free_vram: Callable          # () -> int | None
     write: Callable              # (path, document) -> None
+    viewer: Callable | None = None   # (progress_path, title) -> process; the required visible dashboard
 
 
 def run_sft_pilot(job: dict, run_dir: Path, *, approval: dict, environment: dict,
@@ -97,9 +98,13 @@ def run_sft_pilot(job: dict, run_dir: Path, *, approval: dict, environment: dict
         document()
 
     state_holder = {}
+    viewer = None
     try:
         heartbeat.set('STARTING')
         document()
+        if spec.get('viewer_required') and parts.viewer is not None:
+            # The 120x30 Rich dashboard (LLM_TRAINING_VIEWER_COMMAND); no update runs without it.
+            viewer = parts.viewer(metrics / 'progress.json', f"Codexa SFT pilot: {spec['run_name']}")
         train, validation = parts.datasets(spec)
         model = parts.model(spec)
         store = parts.store(run_dir, spec)
@@ -109,7 +114,17 @@ def run_sft_pilot(job: dict, run_dir: Path, *, approval: dict, environment: dict
         def stop_requested() -> bool:
             return stop_reason is not None
 
-        state = parts.train_loop(model, optimizer, train, spec, budget, on_update, stop_requested, state_holder)
+        try:
+            state = parts.train_loop(model, optimizer, train, spec, budget, on_update, stop_requested, state_holder)
+        except TimeoutError:
+            # train_model rolls an interrupted accumulation back to the last committed update.
+            stop_reason = stop_reason or 'TRAINING_DEADLINE'
+            current = state_holder['state']
+            state = current.to_dict() if hasattr(current, 'to_dict') else dict(current)
+        if stop_reason is None and state['optimizer_step'] < spec['training']['max_steps']:
+            # train_model also returns early, without an exception, once its deadline has passed.
+            stop_reason = ('TRAINING_DEADLINE' if time.monotonic() >= budget.training_deadline
+                           else 'TRAINING_INCOMPLETE')
         heartbeat.set('FINALIZING')
         if stop_reason is None and state['optimizer_step'] not in spec['evaluation']['updates']:
             evaluate(state['optimizer_step'])
@@ -133,6 +148,7 @@ def run_sft_pilot(job: dict, run_dir: Path, *, approval: dict, environment: dict
             raise
     finally:
         progress.update(state=report['state'], stop_reason=report.get('stop_reason'))
+        report['viewer_closed'] = viewer is not None and viewer.poll() is not None
         heartbeat.set('FINALIZING', terminal_state=report['state'])
         heartbeat.stop()
         parts.write(metrics / 'report.json', report)
@@ -266,9 +282,13 @@ def default_components(device: str = 'cuda') -> Components:
     def heartbeat(path):
         return Heartbeat(path).start()
 
+    def viewer(status, title):
+        from llm_training.conversational_training import start_chat_viewer
+        return start_chat_viewer(status, title=title)
+
     return Components(heartbeat=heartbeat, budget=SessionBudget.start, datasets=datasets, model=model,
                       optimizer=optimizer, train_loop=train_loop, evaluate=evaluate, store=Store,
-                      free_vram=free_vram, write=atomic_document)
+                      free_vram=free_vram, write=atomic_document, viewer=viewer if device == 'cuda' else None)
 
 
 def main(arguments: list[str] | None = None) -> int:  # pragma: no cover - supervisor entry, authorized runs only

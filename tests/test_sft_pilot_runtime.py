@@ -359,3 +359,25 @@ def test_every_trainer_terminal_state_is_known_to_the_supervisor():
     assert {rt.terminal_state(r) for r in reasons} <= set(TERMINAL)
     # The exception path writes FAILED or INTERRUPTED only.
     assert {'FAILED', 'INTERRUPTED'} <= set(TERMINAL)
+
+
+def test_fake_train_deadline_during_accumulation_finalizes_gracefully(tmp_path):
+    parts, saves, _ = _components(tmp_path, losses=[2.] * 40)
+
+    def interrupted(model, optimizer, train, spec, budget, on_update, stop_requested, holder):
+        for step in range(1, 41):
+            holder['state'] = dict(optimizer_step=step)
+            on_update(step, 2., 1.)
+        raise TimeoutError('Training deadline reached during accumulation.')
+    parts.train_loop = interrupted
+    report = trainer.run_sft_pilot(_train_job(tmp_path), tmp_path / 'run', approval={}, environment={}, components=parts)
+    assert (report['state'], report['stop_reason'], report['outcome']) == ('COMPLETED', 'TRAINING_DEADLINE',
+                                                                          'INCONCLUSIVE_DEADLINE')
+    assert saves == [(True, 40)] and report['final_checkpoint_verified']
+
+
+def test_fake_train_early_return_is_never_reported_as_step_cap(tmp_path):
+    parts, saves, _ = _components(tmp_path, losses=[2.] * 20)
+    report = trainer.run_sft_pilot(_train_job(tmp_path), tmp_path / 'run', approval={}, environment={}, components=parts)
+    assert report['stop_reason'] == 'TRAINING_INCOMPLETE' and report['state'] == 'EARLY_STOPPED'
+    assert saves == [(True, 20)]

@@ -5,7 +5,7 @@ Codexa has two implementation contexts. Both use the **same interpreter and the 
 | Context | How it is selected | Codexa components come from | Use it for |
 |---|---|---|---|
 | **Current development** | `tools/codexa-dev …`, any script that imports `workspace_bootstrap`, the `codexa` CLI (`run.py`, `.venv/bin/codexa`), pytest via `conftest.py` | sibling `../LLM-*/src` (source first) | all new development, tests, inference and evaluation |
-| **Historical** | `.venv/bin/python` without the bootstrap, the `.venv/bin/llm-*` console scripts, and the scripts listed below | wheels installed in `.venv/lib64/python3.14/site-packages` (snapshot of 2026-10-10) | reproducing and verifying `codexa-934m-foundation-5h-v1` |
+| **Historical** | `.venv/bin/python` without the bootstrap, with `--environment historical` for training-related operations | wheels installed in `.venv/lib64/python3.14/site-packages` (snapshot of 2026-10-10) | verifying `codexa-934m-foundation-5h-v1` and eligible exact recovery |
 
 There is no second virtual environment, and `.venv` is never reinstalled. Its installed wheels are the historical implementation, hash-bound into the completed run's `config/job.json` `code_identity`.
 
@@ -38,6 +38,30 @@ tools/codexa-dev                                                         # inter
 
 `--expect` exits non-zero on a mismatch.
 
+For training operations, use the construction-free preflight. It reads source
+paths, SHA-256s, Git revisions, the tokenizer and the frozen job without
+initializing a model or optimizer:
+
+```bash
+.venv/bin/python scripts/environment_identity.py --preflight-environment historical --operation verify
+tools/codexa-dev scripts/environment_identity.py --preflight-environment development --operation inspect
+tools/codexa-dev scripts/environment_identity.py --preflight-environment development --operation new
+```
+
+The last command currently fails because several executed owner source trees
+have uncommitted changes. A future new job requires those source changes to be
+reviewed, committed locally and reflected in `compatibility.json`. Once clean,
+pass `--environment development` to its training entry point. Historical
+selection cannot create a new job or resume the completed foundation job.
+
+The removable `.venv` startup guard is installed and checked with
+`.venv/bin/python tools/install_training_guard.py install|verify`. It changes
+no installed package bytes. Normal direct component CLIs, `python -m`,
+supervisor commands, and source-first scripts call the same preflight before
+training begins. A missing or mismatched selection fails instead of falling
+back to installed wheels. The existing `code_identity` and approval gates
+remain in force after this environment gate.
+
 ## Entry points that intentionally stay historical
 
 Each of these resolves the installed `b7f857ad…` model.
@@ -55,7 +79,7 @@ Checked statically; they use the identical `sys.path.insert(0, ROOT / "src")` se
 
 The supervisor launches the trainer with `PYTHONPATH=src` only, so a supervised trainer also uses the installed wheels.
 
-They keep historical verification and reproduction exact. For corrected inference, use the bootstrap scripts (`scripts/chat_native.py`, `scripts/generate.py`, `scripts/evaluate_checkpoint.py`), the `codexa` CLI, or `tools/codexa-dev -m <module>`.
+These paths continue to load historical packages for read-only verification. Training-capable commands require explicit environment selection and identity validation. For corrected inference, use the bootstrap scripts (`scripts/chat_native.py`, `scripts/generate.py`, `scripts/evaluate_checkpoint.py`), the `codexa` CLI, or `tools/codexa-dev -m <module>`.
 
 The `.venv/bin/codexa` console script is current: it launches its subcommands with a source-first `PYTHONPATH`.
 
@@ -78,7 +102,7 @@ Generation itself is unaffected by the repair. `llm_inference.generate` compacts
        outputs/preservation/historical-source/codexa-934m-foundation-5h-v1
    ```
 
-   10 of the 12 hash-bound files were never committed to Git (the training supervisor modules, five `llm_training` modules and `llm_data.token_views`). This artifact, together with `.venv`, is their only exact copy.
+   10 of the 12 hash-bound files were never committed to Git (the training supervisor modules, five `llm_training` modules and `llm_data.token_views`). A separate private content-addressed archive now restores all 12 without `.venv`; see [recovery instructions](HISTORICAL_SOURCE_RECOVERY.md). Off-device backup remains pending.
 3. Historical architecture source in Git: `git -C ../LLM-Architecture show c334620:src/llm_architecture/model.py`, SHA-256 `b7f857ad…`. `compatibility.json` records the historical component commits under `historical_identity`.
 4. If `.venv` is ever damaged, rebuild a separate environment from `pip-freeze.txt`. Then copy `venv-components/` into its `site-packages` and re-run `--expect historical`. Do not rebuild `.venv` in place without preserving it first.
 
@@ -90,7 +114,9 @@ Generation itself is unaffected by the repair. `llm_inference.generate` compacts
 
 ## Rollback
 
-- **Nothing in `.venv` was changed**, so the historical environment needs no rollback.
+- Installed package bytes are unchanged. The added `codexa_training_guard.pth`
+  can be removed to roll back the local startup guard, but doing so reopens
+  unsafe direct training paths and must fail the guard verification check.
 - To remove the current-development tooling: delete `tools/codexa-dev` and `scripts/environment_identity.py`, or `git revert` the integration commit that added them.
 - To return the current context to the pre-repair architecture, run `git -C ../LLM-Architecture revert bdf3683`. This also restores `b7f857ad…` in source, after which `code_identity` matches in both contexts.
 - `compatibility.json` pins: the previous values are recorded under `historical_identity.component_commits`.

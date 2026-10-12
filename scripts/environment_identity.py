@@ -274,9 +274,19 @@ def main() -> int:
     group.add_argument("--snapshot", type=Path)
     group.add_argument("--preserve-history", type=Path)
     group.add_argument("--verify-preservation", type=Path)
+    group.add_argument("--preflight-environment", choices=("historical", "development"),
+                       help="construction-free training identity check")
+    parser.add_argument("--operation", choices=("inspect", "verify", "new", "resume"), default="inspect",
+                        help="operation to validate with --preflight-environment")
     args = parser.parse_args()
     if args.verify_preservation:
         return verify_preservation(args.verify_preservation)
+    if args.preflight_environment:
+        sys.path.insert(0, str(ROOT / "tools"))
+        from training_environment_guard import inspect
+        checked = inspect(args.preflight_environment, args.operation)
+        print(json.dumps(checked, indent=2, sort_keys=True))
+        return 0 if checked["valid"] else 2
     if args.preserve_history:
         preserve_history(args.preserve_history)
         return 0

@@ -13,6 +13,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 PY="${CODEXA_PYTHON:-$ROOT/.venv/bin/python}"
+# The startup safety guard runs before workspace_bootstrap. Give it the same
+# source-first search path that the bootstrap will install inside Python.
+export PYTHONPATH="$ROOT/../LLM-Architecture/src:$ROOT/../LLM-Tokenizer/src:$ROOT/../LLM-Data/src:$ROOT/../LLM-Training/src:$ROOT/../LLM-Inference/src:$ROOT/../LLM-Memory/src:$ROOT/../LLM-Specialist/src:$ROOT/src:$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 exec "$PY" -c '
 import code, os, runpy, sys
 sys.path.insert(0, sys.argv[1])

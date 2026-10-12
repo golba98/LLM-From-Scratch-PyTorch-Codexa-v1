@@ -95,7 +95,34 @@ def test_changed_architecture_and_import_path_fail_without_importing_model(tmp_p
     assert sys.modules.get("llm_architecture.model") is imported_before
 
 
-def test_dirty_source_blocks_new_development_job_without_initialization(monkeypatch):
+def _isolated_workspace(tmp_path, monkeypatch, *, dirty_component, dirty_integration):
+    """A real, separate Git workspace, so the check never depends on this checkout's state."""
+    def commit(repo, *paths):
+        for path in paths:
+            target = repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# fixture\n")
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        subprocess.run(["git", "-C", str(repo), "add", "--", *paths], check=True)
+        subprocess.run(["git", "-C", str(repo), "-c", "user.name=fixture", "-c", "user.email=fixture@invalid",
+                        "commit", "-q", "--no-verify", "-m", "fixture"], check=True)
+        return subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True,
+                              capture_output=True, text=True).stdout.strip()
+    root, component = tmp_path / "LLM-From-Scratch", tmp_path / "LLM-Architecture"
+    head = commit(component, "src/llm_architecture/__init__.py")
+    commit(root, "src/codexa_workspace/__init__.py")
+    (root / "compatibility.json").write_text(json.dumps({"components": {"LLM-Architecture": {
+        "path": "../LLM-Architecture", "commit": head}}}))
+    if dirty_component:
+        (component / "src/llm_architecture/uncommitted.py").write_text("")
+    if dirty_integration:
+        (root / "scripts").mkdir()
+        (root / "scripts/uncommitted.py").write_text("")
+    monkeypatch.setattr(gate, "ROOT", root)
+    monkeypatch.setattr(gate, "WORKSPACE", tmp_path)
+
+
+def _forbid_model_imports(monkeypatch):
     def fail_import(name, *args, **kwargs):
         if name.startswith(("torch", "llm_architecture")):
             raise AssertionError("preflight imported model or optimizer code")
@@ -103,9 +130,25 @@ def test_dirty_source_blocks_new_development_job_without_initialization(monkeypa
     import builtins
     original = builtins.__import__
     monkeypatch.setattr(builtins, "__import__", fail_import)
+
+
+def test_dirty_source_blocks_new_development_job_without_initialization(tmp_path, monkeypatch):
+    _isolated_workspace(tmp_path, monkeypatch, dirty_component=True, dirty_integration=True)
+    _forbid_model_imports(monkeypatch)
     report = gate.inspect("development", "new")
     assert not report["valid"]
-    assert any("uncommitted" in error for error in report["errors"])
+    assert "LLM-Architecture has uncommitted executed source" in report["errors"]
+    assert "Integration training source has uncommitted changes" in report["errors"]
+
+
+def test_clean_isolated_source_raises_no_uncommitted_error(tmp_path, monkeypatch):
+    """Positive control: the same fixture, committed, produces no dirty-source error."""
+    _isolated_workspace(tmp_path, monkeypatch, dirty_component=False, dirty_integration=False)
+    _forbid_model_imports(monkeypatch)
+    report = gate.inspect("development", "new")
+    assert not any("uncommitted" in error for error in report["errors"])
+    assert report["component_revisions"]["LLM-Architecture"]["expected"] == \
+        report["component_revisions"]["LLM-Architecture"]["detected"]
 
 
 def test_guard_installation_is_required_for_direct_cli():

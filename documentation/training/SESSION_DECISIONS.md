@@ -2328,3 +2328,38 @@ Report: `outputs/diagnostics/post-repair-integration/20261012T095454Z/REPORT.md`
 - **Readiness for 6d9d8453:** 0 engineering failures (focused tests 24 + 58 pass). CONDITIONALLY READY, because free disk is 43.7 MB below the 180 GiB gate. The space was taken by the SFT pilot checkpoints and new user files. Nothing was deleted and no gate was lowered.
 - **Regression:** integration 489 passed, all components pass, audit 65 passed.
 - **Commits:** local only. No push, no PR, PR #6 untouched.
+
+
+## 2026-10-13 — Dedicated encrypted SSD asset cutover
+
+- Copied 75 Codexa checkpoint/export payloads and 141 small companion files to
+  `/mnt/codexa`; original assets remain intact. Datasets, logs, repositories,
+  environments, external model caches and Windows storage were not migrated.
+- Saved PyTorch inputs use `/mnt/codexa/pytorch/saved`; selected workspace
+  checkpoint stores retain relative layout under `pytorch/workspace-outputs`.
+  NumPy inputs use `/mnt/codexa/numpy/current`, with deprecated and smoke assets
+  in separate siblings. Dataset/log/recovery references remain on original storage.
+- Fresh source/destination SHA-256 inventories matched. Native model schemas and
+  three component-store snapshots loaded; representative PyTorch and NumPy CPU
+  inference agreed with originals. NumPy optimizer/RNG restoration and bounded
+  native smoke optimizer/scheduler loading passed without training updates.
+- All five HF-format Codexa exports loaded offline and passed CPU inference; all
+  five GGUF exports passed structure/tokenizer parsing. GGUF runtime generation
+  and large CUDA optimizer/RNG restoration were not executed.
+- Local asset roots, specific checkpoint aliases and six-model native registry
+  paths changed without altering identities/hashes. Relative historical input
+  references resolve to copied files. Optional mount-UUID checks prevent missing
+  volume fallback; copied run trees and retained asset sources are read-only
+  output destinations. Canonical source-first bridge readiness was verified.
+- Historical installed wheels/frozen training code, production gates and output
+  roots remain unchanged. Resolver changes remain uncommitted, so normal
+  committed-source approval is still needed before a new production launch.
+- SELinux remains enforcing; asset directories/files have user_home_t labels.
+  A persistent fcontext rule requires the prepared local administrator step;
+  its completion is recorded in private migration evidence, not assumed here.
+- No sources were deleted or deduplicated. Fedora capacity is therefore unchanged.
+  Independent protected backup and restore testing plus separate authorization
+  are required before original retirement. Header/config backup remains protected
+  on the encrypted Fedora system; an independent copy is still required.
+- Operational commands, exact drive identity, rollback instructions and validation
+  artifacts are documented in Documents/codexa-migration outside Git.

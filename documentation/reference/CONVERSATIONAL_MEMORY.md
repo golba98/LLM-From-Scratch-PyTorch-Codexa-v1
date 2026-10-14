@@ -8,18 +8,18 @@ Run commands from the repository root. Existing environments are retained: `.ven
 
 ```bash
 # Existing conversational checkpoint; memory stays off.
-.venv/bin/python scripts/chat_native.py \
+python run.py chat_native \
   --checkpoint checkpoints/codexa-900m-sft-repair-v1/latest.pt \
   --tokenizer checkpoints/tokenizer-base-v1/tokenizer.json
 
 # Explicit opt-in, RAM-only memory.
-.venv/bin/python scripts/chat_native.py \
+python run.py chat_native \
   --checkpoint checkpoints/codexa-900m-sft-repair-v1/latest.pt \
   --tokenizer checkpoints/tokenizer-base-v1/tokenizer.json \
   --memory ephemeral
 
 # Explicitly persistent, user-scoped local storage.
-.venv/bin/python scripts/chat_native.py \
+python run.py chat_native \
   --checkpoint checkpoints/codexa-900m-sft-repair-v1/latest.pt \
   --tokenizer checkpoints/tokenizer-base-v1/tokenizer.json \
   --memory persistent --user-id my-user \
@@ -78,15 +78,18 @@ Prompt fitting never changes archived history. Failed generation leaves history 
 
 The retrieval fixture contains 60 synthetic evaluation-only queries across direct references, paraphrases, long-distance references, related distractors, updated preferences, and no-context requests. Development and test use different conversation families (30 queries each). These fixtures are not training data.
 
+The Stage 2 scripts (`evaluate_memory`, `evaluate_chat_memory`, `evaluate_chat_decoding`, `train_chat_stage2`) were retired on
+2026-10-13; recover them from git tag `pre-rewrite-2026-10-13` to rerun these commands.
+
 ```bash
-.venv-specialist/bin/python scripts/evaluate_memory.py \
+.venv-specialist/bin/python scripts/evaluation/evaluate_memory.py \
   --device cpu --output logs/memory/retrieval-new-run
 
-.venv/bin/python scripts/evaluate_chat_memory.py \
+.venv/bin/python scripts/evaluation/evaluate_chat_memory.py \
   --checkpoint checkpoints/codexa-900m-sft-repair-v1/latest.pt \
   --output logs/memory/chat-new-run
 
-.venv/bin/python scripts/evaluate_chat_memory.py \
+.venv/bin/python scripts/evaluation/evaluate_chat_memory.py \
   --checkpoint checkpoints/codexa-900m-sft-repair-v1/latest.pt \
   --memory-device cuda --output logs/memory/chat-cuda-new-run
 ```
@@ -118,7 +121,7 @@ Preliminary 24-scenario hardware comparisons, recorded before the final stable-l
 
 Total GPU values include desktop/driver usage. CUDA encoder allocator peaks were 737 MiB allocated / 796 MiB reserved. Response medians mix different response lengths and are not isolated encoder speed comparisons. CPU remains the default for isolation. The SFT pilot runs without an embedding worker on CUDA.
 
-Generation results, representative outputs, and completed pilot metrics are recorded in `documentation/training/STAGE2_RESULTS.md`. Retrieval ranking, literal-value checks, loop measurements and END statistics are automated diagnostics. Qualitative notes are agent assessments; no human ratings have been collected. A recalled name can still be misattributed to the assistant, and retrieved corrections can still be ignored.
+Generation results, representative outputs, and completed pilot metrics are recorded in `documentation/reports/STAGE2_RESULTS.md`. Retrieval ranking, literal-value checks, loop measurements and END statistics are automated diagnostics. Qualitative notes are agent assessments; no human ratings have been collected. A recalled name can still be misattributed to the assistant, and retrieved corrections can still be ignored.
 
 ## Conversational data and bounded training
 
@@ -128,11 +131,11 @@ Existing UltraChat and OpenAssistant prepared derivatives are reused. Balanced a
 
 ```bash
 # Existing output is protected; choose a fresh path for another preparation.
-.venv/bin/python scripts/prepare_general_chat.py \
+python run.py prepare_general_chat \
   --output data/processed/general-chat-sft-v2-new-run
 
 # Hard limits remain <=200 steps and <=60 minutes.
-.venv/bin/python scripts/train_chat_stage2.py \
+.venv/bin/python scripts/legacy/train_chat_stage2.py \
   --run-name codexa-900m-chat-stage2-pilot-new-run \
   --max-steps 200 --minutes 60
 ```
@@ -148,11 +151,11 @@ The pilot is experimental and is not promoted automatically. A native weights-on
 Native chat exposes the decoder's existing `--greedy`, `--seed`, `--repetition-penalty` and `--no-repeat-ngram-size` controls; defaults are unchanged. Repetition controls can inhibit useful repetitions and copying names from context. They do not supply missing knowledge.
 
 ```bash
-.venv/bin/python scripts/evaluate_chat_decoding.py \
+.venv/bin/python scripts/evaluation/evaluate_chat_decoding.py \
   --checkpoint checkpoints/codexa-900m-sft-repair-v1/latest.pt \
   --output logs/memory/decoding-new-run.json
 
-.venv-specialist/bin/python scripts/probe_embedding_states.py \
+python run.py --profile specialist probe_embedding_states \
   --device cpu --output logs/memory/token-state-probe-new-run.json
 ```
 
@@ -161,10 +164,9 @@ See `ENCODER_CONDITIONING.md` for architecture A/B/C, accessible token states, t
 ## Verification and limitations
 
 ```bash
-.venv/bin/python -m pytest -q
-.venv-specialist/bin/python -m pytest -q \
-  tests/test_specialist.py tests/test_memory.py \
-  tests/test_native_memory.py tests/test_general_chat.py
+tools/codexa-dev -m pytest -q tests/integration/test_memory.py tests/integration/test_native_memory.py \
+  tests/integration/test_general_chat.py
+python run.py --profile specialist --repo LLM-Specialist test -q
 ```
 
 Existing classifier contracts and all 39 specialist tests are preserved. Tests cover role safety, context fitting with/without a system prompt, rollback, normalized shapes, scopes, deterministic ranking, persistence, deletion, safe rebuild failure, unsupported prompts, unavailable encoder fallback, shifted assistant targets, duplicate splits, deadlines and tiny native checkpoint inference.

@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from codexa_workspace.assets import workspace_root, asset_root, output_root, normalize_paths
-
+from codexa_workspace.sibling_commands import SIBLING_COMMANDS
 
 
 def main() -> int:
@@ -18,7 +18,7 @@ def main() -> int:
     parser.add_argument("--profile", choices=("generative", "specialist"), default="generative")
     parser.add_argument("--python", type=Path, help="Override the existing profile interpreter.")
     parser.add_argument("--repo", default="LLM-From-Scratch", help="Repository working directory.")
-    parser.add_argument("command", help="test, module, or an existing scripts/<name>.py command.")
+    parser.add_argument("command", help="test, module, a sibling command name (see sibling_commands.py) or scripts/<name>.py.")
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     ROOT = workspace_root(args.workspace)
@@ -54,11 +54,16 @@ def main() -> int:
             parser.error("module requires a module name.")
         command = [str(python), "-m", *args.arguments]
     else:
-        script = ROOT / "scripts" / (args.command.removesuffix(".py") + ".py")
-        if not script.is_file():
+        name = args.command.removesuffix(".py")
+        script = ROOT / "scripts" / f"{name}.py"
+        if name in SIBLING_COMMANDS:
+            target = ["-m", SIBLING_COMMANDS[name]]
+        elif script.is_file():
+            target = [str(script)]
+        else:
             parser.error(f"Unknown command: {args.command}")
-        arguments = normalize_paths(ROOT, args.arguments, training=args.command in {"train", "train_conversational_sft"})
-        command = [str(python), str(script), *arguments]
+        arguments = normalize_paths(ROOT, args.arguments, training=name in {"train", "train_conversational_sft"})
+        command = [str(python), *target, *arguments]
     return subprocess.call(command, cwd=cwd, env=env)
 
 

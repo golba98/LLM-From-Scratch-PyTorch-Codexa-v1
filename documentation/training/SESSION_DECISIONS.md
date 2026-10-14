@@ -2363,3 +2363,85 @@ Report: `outputs/diagnostics/post-repair-integration/20261012T095454Z/REPORT.md`
   on the encrypted Fedora system; an independent copy is still required.
 - Operational commands, exact drive identity, rollback instructions and validation
   artifacts are documented in Documents/codexa-migration outside Git.
+
+
+## 2026-10-13 — Authorized SSD dataset cutover and selective cleanup
+
+Copied, SHA-256 verified and published 319 dataset files (36,629,431,092 bytes)
+on the dedicated SSD; originals remain intact. Updated ignored local settings
+for eight smoke aliases, historical NumPy datasets and separate SSD output roots.
+Added an SSD-only future supervisor wrapper without changing frozen job modules.
+Four wrapper tests passed. Native protocol-v2 CPU loading and one-token inference
+passed from the SSD under the unchanged RAM gate. Four NumPy smoke checkpoints
+restored model/optimizer state and produced finite CPU logits without training.
+
+Deleted six manifest-original payload files (15,320,576,183 logical bytes) under
+explicit user authorization. Three had identical retained original survivors;
+three exports were tensor-by-tensor proven reconstructible from retained native
+training sources. Fresh source/destination/recovery hashes and visible dependency
+checks preceded each unlink; durable transaction logs and compatibility links
+preserve exact mappings. No SSD payload was deleted or changed. Initial measured
+net available-space gain was 9,533,263,872 bytes (8.87854 GiB); live background
+writes and Btrfs accounting affect later free-space readings.
+
+210 original manifest files remain (225,072,916,224 logical bytes), including
+69 payloads and all 141 companions. Unverified recovery coverage prevents wider
+retirement. No independent external backup/restore was established, no snapshots
+or caches were cleared, no training/service restart/commit/push occurred. Frozen
+historical jobs retain prepared-input paths; their migration is a separate
+review. The existing retired-path legacy inference service remains unresolved.
+Current full report, proofs, exact deleted/retained inventories and rollback
+limitations: `/home/k9-vortex/Documents/codexa-migration/CLEANUP-REPORT.md`.
+
+
+## 2026-10-13 — Integration repository layout reorganization
+
+Decision: make the integration repository navigable without moving anything a
+frozen job, systemd unit, venv hook or gate refers to. AGENTS.md is now a short
+index of hard rules; topic detail lives in `documentation/operations/`
+(TRAINING_OPERATIONS, NOTIFICATIONS, STORAGE_AND_ASSETS, FROZEN_CODE). The three
+storage sections were merged into one current statement (`/mnt/codexa` SSD is
+canonical). FROZEN_CODE lists the full union of every job's `CODE_FILES`.
+Superseded docs moved to `documentation/archive/` under their original names;
+`documentation/README.md` maps every document.
+
+73 helper scripts moved into `scripts/{data,evaluation,diagnostics,inference,
+storage,sft,monitoring,legacy}/`; 17 operator, hash-bound or flat-lookup scripts
+stay at the top level and `run.py` falls back to a unique grouped script. 52 tests
+moved into area subpackages; the 7 tests that gates run by path stay at the top
+level. Only verified non-hash-bound src modules were edited (script path strings)
+plus `cli.py`. sha256 of every other protected file is unchanged and the then-current
+10-hour job and FROZEN_JOB_MANIFEST code_identity matched 11/11 at verification time.
+No training, asset change or service restart occurred.
+
+
+## 2026-10-13 — Full rewrite of the integration tree
+
+Decision (user-approved): unfreeze the integration code, delete legacy and finished-experiment
+material, and restructure the repository so the tree is readable. Everything removed is
+recoverable from git tag `pre-rewrite-2026-10-13`.
+
+- `src/codexa_workspace` is layered (`paths`/`hashing` → `assets` → `evaluation` → `training`
+  → `notifications` → `monitoring` → jobs and operator tools); `tests/infra/test_layering.py`
+  enforces it. Helpers that current code borrowed from experiment modules were extracted first
+  (`training/gates.py`, `training/environment.py`, `evaluation/generation.py`,
+  `evaluation/language_suite.py`, `hashing.py`); then the 900M chat stack, storage benchmarks,
+  selective cleanup, SFT pilot/phase-4/step-5A code, the 5h foundation job code and the
+  diagnosis runner were deleted with their scripts, tests and configs.
+- The supervisor is split into state, runner, systemd and a CLI that only `run`s a prepared run
+  or `reconcile`s; job lifecycle (prepare/approve/launch/resume) belongs to each job's CLI.
+  `reconcile` now also scans the SSD output root. Operator commands default to the latest run.
+- Scripts are thin entry points that import `workspace_bootstrap`; this also fixes the login
+  reconcile unit and the dashboard window, which crashed under plain `.venv` because the installed
+  `llm_training` predates its telemetry module. `.venv` was not reinstalled.
+- Removed: 38 `src/*` adapters, 32 sibling-CLI wrapper scripts (`run.py <name>` resolves sibling
+  commands), sibling-duplicate and empty tests, `workflows/`, `schemas/`, historical configs and
+  superseded documentation. Documentation is now guides/reference/reports/live logs.
+- The prepared 10h continuation job cannot launch (its code identity predates this restructure
+  and the LLM-Architecture refactor); prepare a fresh job before any approval.
+
+Verification: 220 tests pass; 26 fail only because the training guard rejects the current
+workspace (LLM-Architecture `a63ef01` differs from its pin and moved the repair marker; the SSD
+is unmounted). The supervisor tests pass 16/18 under a guard-free harness. 33 sibling CLIs answer
+`--help`, the integration wheel contains the new layout and data files, and the historical source
+archive verifies (231 files, 12 code identities). No training, asset change or service restart.
